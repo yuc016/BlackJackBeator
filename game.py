@@ -6,6 +6,7 @@ BET = 1
 HIT = 0
 STAND = 1
 DOUBLE = 2
+SPLIT = 3
 
 ranks = [
     "ace",
@@ -104,18 +105,22 @@ class Game:
         self.playing_cards = []
         self.card_counts = [0] * 10
         self.doubledown = False
+        self.stand = False
+        self.userCards = []
+        self.dealCards = []
+        self.user_cards = 0
         self.reset()
-
 
     def reset(self):
         # Restart the game
-        self.userCard = []
-        self.dealCard = []
+        self.userCards = []
+        self.dealCards = []
         self.stand = False
         self.bet = BET
         self.doubledown = False
-        self.init_cards(self.userCard, self.dealCard)
+        self.init_cards(self.userCards, self.dealCards)
 
+    # Generate new decks of playing cards
     def new_decks(self):
         self.playing_cards = []
         for rank in ranks:
@@ -125,7 +130,7 @@ class Game:
         
         for i in range(9):
             self.card_counts[i] = 4 * NUM_DECK
-        self.card_counts[9] = 16 * NUM_DECK
+        self.card_counts[9] = 16 * NUM_DECK # Ten's value cards
 
     def remove_rank(self, rank_num):
         rank = ""
@@ -275,7 +280,7 @@ class Game:
 
     def act_hit(self):
         # Give player a card
-        card, cA = self.gen_card(self.userCard)
+        card, cA = self.gen_card(self.userCards)
         self.user_A += cA
         self.user_sum += get_amt(card)
         self.user_cards += 1
@@ -300,7 +305,7 @@ class Game:
         if actual_dealer_sum != 21:
             # Dealer stops when it reaches 17 or it reaches user's card value
             while actual_dealer_sum < actual_user_sum and actual_dealer_sum < 17:
-                card, cA = self.gen_card(self.dealCard)
+                card, cA = self.gen_card(self.dealCards)
                 self.__dealer_A += cA
                 self.__dealer_sum += get_amt(card)
                 actual_dealer_sum, _ = self.calculate_hand(self.__dealer_sum, self.__dealer_A)
@@ -317,13 +322,20 @@ class Game:
             self.act_hit()
             if not self.game_over():
                 self.act_stand()
-        
+
+    def act_split(self):
+        if self.can_split():
+            self.userCards.pop()
 
     def can_double(self):
         if self.doubledown == True:
             return False
         return True
-
+    
+    def can_split(self):
+        if len(self.userCards) == 2 and self.userCards[0][1] == self.userCards[1][1]:
+            return True
+        return False
 
     def update_stats(self):
         self.gameNum += 1
@@ -346,7 +358,7 @@ class Game:
         if self.state == BLACKJACK_STATE:
             return BLACKJACK_PAYRATE
         if self.state == WIN_STATE:
-            return 1    
+            return 1
         if self.state == DRAW_STATE:
             return 0   
         return -1

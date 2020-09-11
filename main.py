@@ -5,11 +5,11 @@ from ai import Agent
 
 from test import *
 
-LOAD = True
-FAST_LEARN = True
+LOAD = False
+FAST_LEARN = False
 LEARN_ITERATIONS = 1000000
-FAST_SIM = True
-SIM_ITERATIONS = 100
+FAST_SIM = False
+SIM_ITERATIONS = 1000000
 
 BLACK = (0,0,0)
 WHITE = (255,255,255)
@@ -71,6 +71,8 @@ class GameRunner:
         self.hitTxt = self.font.render('[H]it', 1, BLACK)
         self.standTxt = self.font.render('[S]tand', 1, BLACK)
         self.doubleTxt = self.font.render('[D]ouble', 1, BLACK)
+        self.splitTxt = self.font.render('Spli[t]', 1, BLACK)
+        self.splitHandTxt = self.font.render('Split: 0', 1, BLACK)
 
         modes = ["off", "on"]
         self.QLTxt = [self.font.render('[Q]L - ' + mode, 1, BLUE) for mode in modes]
@@ -83,10 +85,11 @@ class GameRunner:
 
         self.background = pygame.Surface(self.screen.get_size())
         self.background = self.background.convert()
-        self.background.fill((0x00, 0x62, 0xbe))
+        self.background.fill((0xa0, 0xa0, 0xa0))
         self.hitB = pygame.draw.rect(self.background, WHITE, (10, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
         self.standB = pygame.draw.rect(self.background, WHITE, (95, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
         self.doubleB = pygame.draw.rect(self.background, WHITE, (180, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
+        self.splitB = pygame.draw.rect(self.background, WHITE, (265, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
 
         
     def loop(self):
@@ -163,6 +166,13 @@ class GameRunner:
         pressed = event.type == KEYDOWN and event.key == K_d
 
         return not self.game.game_over() and not self.autoPlay and (clicked or pressed)
+
+    def check_act_split(self, event):
+        clicked = event.type == MOUSEBUTTONDOWN and self.splitB.collidepoint(pygame.mouse.get_pos())
+        pressed = event.type == KEYDOWN and event.key == K_t
+
+        return not self.game.game_over() and not self.autoPlay and (clicked or pressed)
+
     def check_reset(self, event):
         clicked = event.type == MOUSEBUTTONDOWN
         pressed = event.type == KEYDOWN
@@ -187,6 +197,9 @@ class GameRunner:
 
             elif self.check_act_double(event):
                 self.game.act_double()
+
+            elif self.check_act_split(event):
+                self.game.act_split()
 
             elif self.check_reset(event):
                 self.game.update_stats()
@@ -255,12 +268,14 @@ class GameRunner:
 
         d = self.agent.autoplay_decision(self.game.state, self.game.can_double())
         
-        if d == 0:
+        if d == HIT:
             self.action = "HIT"
-        elif d == 1:
+        elif d == STAND:
             self.action = "STAND"
-        else:
+        elif d == DOUBLE:
             self.action = "DOUBLE"
+        elif d == SPLIT:
+            self.action = "SPLIT"
         
 
         STRATEGY = self.font.render('Recommended action: {}'.format(
@@ -271,6 +286,7 @@ class GameRunner:
         self.screen.blit(self.hitTxt, (37, OPS_TXT_Y))
         self.screen.blit(self.standTxt, (113, OPS_TXT_Y))
         self.screen.blit(self.doubleTxt, (190, OPS_TXT_Y))
+        self.screen.blit(self.splitTxt, (270, OPS_TXT_Y))
         self.screen.blit(self.QLTxt[self.autoQL], (359, OPS_TXT_Y))
         self.screen.blit(self.playTxt[self.autoPlay], (444, OPS_TXT_Y))
         self.screen.blit(self.ops_instr, (OPS_INSTR_X, OPS_INSTR_Y))
@@ -282,6 +298,7 @@ class GameRunner:
         self.screen.blit(QV, (20, 220))
         self.screen.blit(STRATEGY, (20, 240))
 
+        self.screen.blit(self.splitHandTxt, (350, 300))
         self.screen.blit(winTxt, (500, 23))
         self.screen.blit(blackjackTxt, (500, 48))
         self.screen.blit(drawTxt, (500, 73))
@@ -296,7 +313,7 @@ class GameRunner:
         self.screen.blit(self.save_instr, (350, 380))
         self.screen.blit(self.load_instr, (350, 400))
 
-        for i, card in enumerate(self.game.userCard):
+        for i, card in enumerate(self.game.userCards):
             x = 10 + i * 20
             self.screen.blit(self.card_imgs[card], (x, USR_CARD_HEIGHT))
         
@@ -311,11 +328,11 @@ class GameRunner:
                 result_txt = self.gameoverTxt[1]
             self.draw_label_hl(self.screen, GAME_OVER_TEXT_POS, result_txt)
             self.screen.blit(result_txt, GAME_OVER_TEXT_POS)
-            for i, card in enumerate(self.game.dealCard):
+            for i, card in enumerate(self.game.dealCards):
                 x = 10 + i * 20
                 self.screen.blit(self.card_imgs[card], (x, 10))
         else:
-            self.screen.blit(self.card_imgs[self.game.dealCard[0]], (10, 10))
+            self.screen.blit(self.card_imgs[self.game.dealCards[0]], (10, 10))
             self.screen.blit(self.cBack, (30, 10))
 
         pygame.display.update()
