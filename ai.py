@@ -1,86 +1,49 @@
 import copy
 import random
 
-from game import Game, states, BET, WIN_STATE, LOSE_STATE, DRAW_STATE, BLACKJACK_STATE, SIMPLE_STATE
+from game import Game, states, BET, WIN_STATE, LOSE_STATE, DRAW_STATE, BLACKJACK_STATE, SIMPLE_STATE, CAN_SPLIT, HIT, STAND, DOUBLE, SPLIT
 
-HIT = 0
-STAND = 1
-DOUBLE = 2
 DISCOUNT = 0.97 #This is the gamma value for all value calculations
-FAST_LEARN = False
+FAST_LEARN = True
 
 class Agent:
     def __init__(self):
         # For Q-learning values
-        self.Q_values = {}   # Dictionary storing the Q-Learning value of each state and action
-        self.N_Q = {}        # Dictionary: Store the number of samples of each state
-
-        self.double_values = {}
+        self.Q_values = {}      # Dictionary storing the Q-Learning [HIT, STAND] values of each state
+        self.double_values = {} # Dictionary storing the DOUBLE values of each state
+        self.split_values = {}  # Dictionary storing the SPLIT values of each state
+        self.N_Q = {}           # Dictionary storing the number of samples of each state
 
         self.hitQ = 0
         self.standQ = 0
         self.doubleQ = 0
-        self.hitQ = 0
-        self.standQ = 0
+        self.splitQ = 0
 
         # Initialization of the values
         for s in states:
             self.Q_values[s] = [0,0] # First element is the Q value of "Hit", second element is the Q value of "Stand"
-            self.N_Q[s] = 0
             self.double_values[s] = 70
+            self.split_values[s] = 70
+            self.N_Q[s] = 0
 
-        if SIMPLE_STATE:
-            for s in states:
-                self.double_values[s] = self.calculate_double_value(s)
-        
-        # NOTE: see the comment of `init_cards()` method in `game.py` for description of game state       
         self.simulator = Game()
 
-    # NOTE: do not modify
-    # This is the policy for MC and TD learning. 
-    @staticmethod
-    def default_policy(state):
-        user_sum = state[0]
-        user_A_active = state[1]
-        actual_user_sum = user_sum + user_A_active * 10
-        if actual_user_sum < 14:
-            return 0
-        else:
-            return 1
-
-    # NOTE: do not modify
-    # This is the fixed learning rate for TD and Q learning. 
+    # Learning rate for Q-Learning
     @staticmethod
     def alpha(n):
         return 10.0/(9 + n)
 
+    # Explore vs. Exploit probability
     @staticmethod
     def epsilon(n):
-        return 10/(9 + n)
+        return 1
+        return 40000/(39999 + n)
     
     def Q_run(self, num_simulation, tester=False):
-        # Simulate all possible starting card counts
-        # for n in range(2**10):
-        #     bits = []
-        #     for i in range(10):
-        #         bits.append(n >> (9-i) & 0x1)
-
-        #Perform num_simulation rounds of simulations in each cycle of the overall game loop
+        # Perform num_simulation rounds of simulations of gameplay
         for simulation in range(num_simulation):
-
-            # self.simulator.new_decks()
             self.simulator.reset()
-            # for i in range(10):
-            #     if bits[i] == 0:
-            #         self.simulator.remove_rank(i + 1)
 
-            # # Skip if this is not a possible game state
-            # if not self.simulator.cards_sufficient():
-            #     continue
-
-            # TODO: Remove the following dummy update and implement Q-learning
-            # Note: Do not reset the simulator again in the rest of this simulation
-            # Hint: You need a loop that takes one step simulation each time, until state is "None" which indicates termination
             state = self.simulator.state
             reward = self.simulator.check_reward()
             while True:
@@ -101,6 +64,15 @@ class Agent:
             if FAST_LEARN and simulation % (num_simulation / 10) == 0:
                 print(simulation * 100 / num_simulation, "%")
 
+        if SIMPLE_STATE:
+            for s in states:
+                self.double_values[s] = 70
+                self.double_values[s] = self.calculate_double_value(s)
+                self.split_values[s] = 70
+                # Split happens when sum is even and if sum is 2, dealer has ace
+                if int(s[0]) % 2 == 0 and int(s[1]) != 1 and int(s[0]) > 2 or int(s[0]) == 2 and int(s[1]) == 1:
+                    self.split_values[s] = self.calculate_split_value(s)
+
     def pick_action(self, s, epsilon):
         if random.random() < epsilon:
             # Make random choice (explore)
@@ -111,24 +83,27 @@ class Agent:
                 return HIT
             return STAND
 
-    def autoplay_decision(self, state, can_double):
-        return self.ai_decision(state, can_double)
+    def autoplay_decision(self, state, can_double, can_split):
+        return self.ai_decision(state, can_double, can_split)
 
-    def ai_decision(self, state, can_double):
+    def ai_decision(self, state, can_double, can_split):
         self.doubleQ = -100
+        self.splitQ = -100
         if can_double:
             if SIMPLE_STATE:
                 self.doubleQ = self.double_values[state]
             else:
                 self.doubleQ = self.calculate_double_value(state)
+        if can_split:
+            if SIMPLE_STATE:
+                self.splitQ = self.calculate_split_value(state)
+            else:
+                raise NotImplemented
+
         self.hitQ, self.standQ = self.Q_values[state][HIT], self.Q_values[state][STAND]
-        if self.hitQ > self.standQ and self.hitQ > self.doubleQ:
-            return HIT
-        if self.standQ > self.hitQ and self.standQ > self.doubleQ:
-            return STAND
-        if self.doubleQ > self.hitQ and self.doubleQ > self.standQ:
-            return DOUBLE
-        return self.simple_decision(state[0])
+
+        actions = {HIT:self.hitQ, STAND:self.standQ, DOUBLE:self.doubleQ, SPLIT:self.splitQ}
+        return max(actions, key=actions.get)
     
     def random_decision(self):
         if random.random() < 0.5:
@@ -144,6 +119,7 @@ class Agent:
         print("HIT: ", self.hitQ)
         print("STAND: ", self.standQ)
         print("DOUBLE: ", self.doubleQ)
+        print("SPLIT: ", self.splitQ)
 
     # Inaccuacy: Consider 21 a win, but can still be a push
     def calculate_double_value(self, state):
@@ -160,7 +136,7 @@ class Agent:
         if SIMPLE_STATE:
             new_state = (state[0] + 1, 1, *(state[2:]))
             if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                sum += BET * 2
+                sum += BET * 1.8
             # stand value of the next state
             else:
                 sum += self.Q_values[new_state][STAND] * 2
@@ -169,7 +145,7 @@ class Agent:
                 i = min(10, i)
                 new_state = (state[0] + i, *(state[1:]))
                 if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                    sum += BET * 2
+                    sum += BET * 1.8
                 elif new_state in states:
                     sum += self.Q_values[new_state][STAND] * 2
                 # busted
@@ -223,51 +199,77 @@ class Agent:
         self.double_values[state] = sum / count
         return self.double_values[state]
 
+    # Inaccuacy: Consider 21 a win, but can still be a push
+    def calculate_split_value(self, state):
+        if state == WIN_STATE or state == LOSE_STATE or state == DRAW_STATE or state == BLACKJACK_STATE:
+            return 0
+
+        # If split value for the state is previously calculated and saved
+        if self.split_values[state] != 70:
+            return self.split_values[state]
+
+        sum = 0
+
+        if SIMPLE_STATE:
+            new_state = (state[0] / 2 + 1, 1, state[2])
+            if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
+                sum += BET * 0.8
+            # max value of the next state
+            else:
+                if CAN_DOUBLE:
+                    sum += max(self.Q_values[new_state][STAND], 
+                            self.Q_values[new_state][HIT], 
+                            self.calculate_double_value(new_state))
+                else:
+                    sum += max(self.Q_values[new_state][STAND], 
+                            self.Q_values[new_state][HIT])
+
+            for i in range(2, 14):
+                i = min(10, i)
+                new_state = (state[0] / 2 + i, *(state[1:]))
+                if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
+                    sum += BET * 0.8
+                elif new_state in states:
+                    if CAN_DOUBLE:
+                        sum += max(self.Q_values[new_state][STAND], 
+                                self.Q_values[new_state][HIT], 
+                                self.calculate_double_value(new_state))
+                    else:
+                        sum += max(self.Q_values[new_state][STAND], 
+                                self.Q_values[new_state][HIT])
+                else:
+                    sum -= BET
+
+            return sum / 13 * 2
+        
+        raise ErrorNotImplmented
+
     def save(self, filename):
         with open(filename, "w") as file:
             # for table in [self.MC_values, self.TD_values, self.Q_values, self.S_MC, self.N_MC, self.N_TD, self.N_Q]:
-            for table in [self.Q_values, self.N_Q]:
+            for table in [self.Q_values, self.double_values, self.split_values, self.N_Q]:
                 for key in table:
                     key_str = str(key).replace(" ", "")
                     entry_str = str(table[key]).replace(" ", "")
                     file.write(f"{key_str} {entry_str}\n")
                 file.write("\n")
 
-        # with open(filename, "w") as file:
-        #     # file.write("[State] [Hit value, Stand value]\n")
-        #     for key in self.Q_values:
-        #         key_str = str(key).replace(" ", "")
-        #         entry_str = str(self.Q_values[key]).replace(" ", "")
-        #         file.write(f"{key_str} {entry_str}\n")
-            
-        #     file.write("\n")
-        #     # file.write("[State] [Number of visit]\n")
-        #     for key in self.N_Q:
-        #         key_str = str(key).replace(" ", "")
-        #         entry_str = str(self.N_Q[key]).replace(" ", "")
-        #         file.write(f"{key_str} {entry_str}\n")
-
     def load(self, filename):
         with open(filename) as file:
             text = file.read()
-            Q_values_text, NQ_text, _  = text.split("\n\n")
+            Q_values_text, doubleQ_text, splitQ_text, NQ_text, _ = text.split("\n\n")
             
             def extract_key(key_str):
                 return tuple([int(x) for x in key_str[1:-1].split(",")])
             
             for table, text in zip(
-                [self.Q_values, self.N_Q], 
-                [Q_values_text, NQ_text]
+                [self.Q_values, self.double_values, self.split_values, self.N_Q], 
+                [Q_values_text, doubleQ_text, splitQ_text, NQ_text]
             ):
                 for line in text.split("\n"):
                     key_str, entry_str = line.split(" ")
                     key = extract_key(key_str)
                     table[key] = eval(entry_str)
-     
-        if SIMPLE_STATE:
-            for s in states:
-                self.double_values[s] = 70
-                self.double_values[s] = self.calculate_double_value(s)
 
     @staticmethod
     def tester_print(i, n, name):

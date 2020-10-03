@@ -1,15 +1,21 @@
+import pygame
+from pygame.locals import *
 import sys, copy, random, argparse, os
 
-from game import Game, cards, HIT, STAND, DOUBLE, WIN_STATE, LOSE_STATE, DRAW_STATE, BLACKJACK_STATE
+from game import Game, cards, HIT, STAND, DOUBLE, SPLIT, WIN_STATE, LOSE_STATE, DRAW_STATE, BLACKJACK_STATE
 from ai import Agent
 
 from test import *
 
-LOAD = False
-FAST_LEARN = False
-LEARN_ITERATIONS = 1000000
-FAST_SIM = False
-SIM_ITERATIONS = 1000000
+# -- Configurations --
+AI_FILE = "saved"
+LOAD = True                  # Load saved AI knowedge from file
+FAST_LEARN = False           # Do Q-Learning and store to file
+LEARN_ITERATIONS = 50000000  # Number of Q-Learning iterations
+FAST_SIM = True              # Simulate games
+SIM_ITERATIONS = 10000000    # Number of simulations to run
+GAMES_PER_STAT_TRACK = 200
+# -- Configurations --
 
 BLACK = (0,0,0)
 WHITE = (255,255,255)
@@ -35,16 +41,16 @@ class GameRunner:
     def __init__(self):
         self.game = Game()
         self.agent = Agent()
+        self.parallel_games = []
 
         if LOAD:
             print("Loading..")
-            self.agent.load("saved")
+            self.agent.load(AI_FILE)
         
         if FAST_LEARN:
             print(f"Learning {LEARN_ITERATIONS} times..")
-            self.agent.FAST_LEARN = True
             self.agent.Q_run(LEARN_ITERATIONS)
-            self.agent.save("saved")
+            self.agent.save(AI_FILE)
 
         self.autoQL = False
         self.autoPlay = False
@@ -91,53 +97,84 @@ class GameRunner:
         self.doubleB = pygame.draw.rect(self.background, WHITE, (180, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
         self.splitB = pygame.draw.rect(self.background, WHITE, (265, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
 
-        
+
     def loop(self):
         if FAST_SIM:
             print("Simulating...")
             i = 0
+            last_checked_profit = 0
+            results_100_games_file = open("results.txt", "w")
+
             while i < SIM_ITERATIONS:
                 if self.game.game_over() or self.game.stand:
                         self.game.update_stats()
                         self.game.reset()
                         i += 1
-                        if i % (SIM_ITERATIONS / 100) == 0:
+                        if i % (SIM_ITERATIONS / 10) == 0:
                             print("[ ", i * 100 / SIM_ITERATIONS, "%]")
+                        if self.game.gameNum % GAMES_PER_STAT_TRACK == 0 and self.game.gameNum != 0:
+                            results_100_games_file.write(str(self.game.profit - last_checked_profit))
+                            results_100_games_file.write("\n")
+                            last_checked_profit = self.game.profit
                 else:
-                    decision = self.agent.autoplay_decision(copy.deepcopy(self.game.state), self.game.can_double())
-                    if decision == 0:
+                    decision = self.agent.autoplay_decision(self.game.state, self.game.can_double(), self.game.can_split())
+                    if decision == HIT:
                         self.game.act_hit()
-                    elif decision == 1:
+                    elif decision == STAND:
                         self.game.act_stand()
-                    else:
+                    elif decision == DOUBLE:
                         self.game.act_double()
+                    elif decision == SPLIT:
+                        self.split_games()
 
+            results_100_games_file.close()
             self.render_board()
-        
 
         while True:
+            display_changed = False
+
             # Our state information does not take into account of number of cards
-            
             if self.autoQL:
                 #Q-Learning
                 #For each state, compute the Q value of the action "Hit" and "Stand"
                 self.agent.Q_run(5)
             
             if self.autoPlay:
-                if self.game.game_over() or self.game.stand:
+                if self.game.game_over():
+                    display_changed = True
                     self.game.update_stats()
-                    self.game.reset()
-                else:
-                    decision = self.agent.autoplay_decision(copy.deepcopy(self.game.state), self.game.can_double())
-                    if decision == 0:
-                        self.game.act_hit()
-                    elif decision == 1:
-                        self.game.act_stand()
+                    if len(self.parallel_games) != 0:
+                        self.parallel_games[0].sync(self.game)
+                        self.game = self.parallel_games[0]
+                        self.parallel_games.pop(0)
                     else:
+                        self.game.reset()
+
+                else:
+                    # if self.game.dealCards[0][0] == "ace" or self.game.dealCards[1][0] == "ace":
+                    #     self.autoPlay = False
+                    #     continue
+                    decision = self.agent.autoplay_decision(copy.deepcopy(self.game.state), self.game.can_double(), self.game.can_split())
+                    if decision == HIT:
+                        self.game.act_hit()
+                    elif decision == STAND:
+                        self.game.act_stand()
+                    elif decision == DOUBLE:
                         self.game.act_double()
+                    elif decision == SPLIT:
+                        self.split_games()
                 
             self.handle_user_action()
             self.render_board()
+    
+    def split_games(self):
+        self.game.act_split()
+        self.parallel_games.append(copy.deepcopy(self.game))
+        self.game.act_hit()
+        self.parallel_games[len(self.parallel_games)-1].act_hit()
+        if self.game.userCards[0][0] == "ace":
+            self.game.act_stand()
+            self.parallel_games[len(self.parallel_games)-1].act_stand()
             
     def check_act_QL(self, event):
         clicked = event.type == MOUSEBUTTONDOWN and self.QLB.collidepoint(pygame.mouse.get_pos())
@@ -196,14 +233,22 @@ class GameRunner:
                 self.game.act_stand()
 
             elif self.check_act_double(event):
-                self.game.act_double()
+                if self.game.can_double():
+                    self.game.act_double()
 
             elif self.check_act_split(event):
-                self.game.act_split()
+                if self.game.can_split():
+                    self.split_games()
 
             elif self.check_reset(event):
                 self.game.update_stats()
-                self.game.reset()
+                if len(self.parallel_games) != 0:
+                    last_index = len(self.parallel_games) - 1
+                    self.parallel_games[last_index].sync(self.game)
+                    self.game = self.parallel_games[last_index]
+                    self.parallel_games.pop()
+                else:
+                    self.game.reset()
             
             if event.type == KEYDOWN:
                 if event.key == K_x:
@@ -237,6 +282,8 @@ class GameRunner:
         blackjackTxt = self.font.render('BlackJacks: {}'.format(self.game.blackjackNum), 1, WHITE)
         profitTxt = self.font.render('Profit: {}'.format(self.game.profit), 1, WHITE)
         amountTxt = self.font.render('Amount played: {}'.format(self.game.amountPlayed), 1, WHITE)
+        maxLossTxt = self.font.render('Max loss: {}'.format(self.game.maxLoss), 1, WHITE)
+        maxWinTxt = self.font.render('Max win: {}'.format(self.game.maxProfit), 1, WHITE)
 
         if self.game.gameNum == 0:
             win_rate = 0
@@ -266,7 +313,7 @@ class GameRunner:
             self.agent.N_Q[self.game.state],
         ) , 1, BLACK)
 
-        d = self.agent.autoplay_decision(self.game.state, self.game.can_double())
+        d = self.agent.autoplay_decision(self.game.state, self.game.can_double(), self.game.can_split())
         
         if d == HIT:
             self.action = "HIT"
@@ -299,12 +346,14 @@ class GameRunner:
         self.screen.blit(STRATEGY, (20, 240))
 
         self.screen.blit(self.splitHandTxt, (350, 300))
-        self.screen.blit(winTxt, (500, 23))
-        self.screen.blit(blackjackTxt, (500, 48))
-        self.screen.blit(drawTxt, (500, 73))
-        self.screen.blit(loseTxt, (500, 98))
-        self.screen.blit(profitTxt, (500, 123))
-        self.screen.blit(amountTxt, (500, 148))
+        self.screen.blit(winTxt, (500, 10))
+        self.screen.blit(blackjackTxt, (500, 30))
+        self.screen.blit(drawTxt, (500, 50))
+        self.screen.blit(loseTxt, (500, 70))
+        self.screen.blit(profitTxt, (500, 90))
+        self.screen.blit(amountTxt, (500, 110))
+        self.screen.blit(maxLossTxt, (500, 130))
+        self.screen.blit(maxWinTxt, (500, 150))
         self.screen.blit(blackjack_rate_txt, (350, 40))
         self.screen.blit(win_rate_txt, (350, 65))
         self.screen.blit(draw_rate_txt, (350, 90))
@@ -338,27 +387,6 @@ class GameRunner:
         pygame.display.update()
 
 
-parser = argparse.ArgumentParser(description='Blackjack')
-parser.add_argument('--test', '-t', dest="test", type=int, default=0, \
-    help='1: test three steps (deterministic), \
-          2: test for divergence (100k steps, asymptotic), \
-          3: test for convergence (1 million steps, asymptotic)'
-)
-parser.add_argument('--algorithm', '-a', dest="algorithm", type=int, default=0, help='0: all, 1: MC, 2: TD, 3: Q-Learning')
-args = parser.parse_args()
-
-if __name__ == '__main__':
-    if args.test == 1:
-        test_three_steps(args.algorithm)
-    elif args.test == 2:
-        test_divergence(args.algorithm)
-    elif args.test == 3:
-        test_convergence(args.algorithm)
-    elif args.test == 4:
-        test_Q_win_rate()
-    else:
-        import pygame
-        from pygame.locals import *
-        ROTATIONS = {pygame.K_UP: 0, pygame.K_DOWN: 2, pygame.K_LEFT: 1, pygame.K_RIGHT: 3}
-        game = GameRunner()
-        game.loop()
+ROTATIONS = {pygame.K_UP: 0, pygame.K_DOWN: 2, pygame.K_LEFT: 1, pygame.K_RIGHT: 3}
+game = GameRunner()
+game.loop()

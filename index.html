@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Blackjack Cheatsheet</title>
+    </head>
+
+    <body>
+        <h1>Blackjack Cheatsheet</h1>
+        <h2>Without Ace</h2>
+        <table id="player_no_ace"><tbody></tbody></table>
+        <h2>With Ace</h2>
+        <table id="player_has_ace"><tbody></tbody></table>
+    </body>
+
+    <script>
+        var HIT = 0;
+        var STAND = 1;
+        var DOUBLE = 2;
+        var HSPLIT = 3;
+        var DSPLIT = 4;
+        var SSPLIT = 5;
+
+        let strategy = {};
+        let strategy_val = {};
+
+        PLAYER_MIN = 2;
+        PLAYER_MAX = 20;
+        DEALER_MIN = 1;
+        DEALER_MAX = 10;
+
+        const buildChart = async() => {
+            await parseFile('./saved');
+            await render();
+        }
+
+        const parseFile = async(filename) => {
+            let dataText = "";
+
+            // Read file
+            await fetch(filename)
+                .then(response => response.text())
+                .then(text => dataText = text);
+            lines = dataText.split("\n");
+
+            // Parse (state) => [hit_val, stand_val] part 
+            i = 0;
+            for(; i < lines.length; i++) {
+                if(!lines[i].includes("(")) {
+                    i++;
+                    break;
+                }
+
+                temp = lines[i].split(") [");
+                state = temp[0];
+                value = temp[1];
+
+                state = state.replace("(", "");
+
+                value = value.replace("]", "");
+                temp = value.split(",");
+                hit_val = parseFloat(temp[0]);
+                stand_val = parseFloat(temp[1]);
+
+                if(hit_val > stand_val) {
+                    strategy[state] = HIT;
+                    strategy_val[state] = hit_val;
+                }
+                else {
+                    strategy[state] = STAND;
+                    strategy_val[state] = stand_val;
+                }
+            }
+
+            // Parse (state) => double_val part 
+            for(; i < lines.length; i++) {
+                if(!lines[i].includes("(")) {
+                    i++;
+                    break;
+                }
+
+                temp = lines[i].split(" ");
+                state = temp[0];
+                value = parseFloat(temp[1]);
+
+                state = state.replace("(", "");
+                state = state.replace(")", "");
+
+                if(value != 70 && value > strategy_val[state]) {
+                    strategy_val[state] = value;
+                    strategy[state] = DOUBLE;
+                }
+            }
+
+            // Parse (state) => double_val part 
+            for(; i < lines.length; i++) {
+                if(!lines[i].includes("(")) {
+                    i++;
+                    break;
+                }
+
+                temp = lines[i].split(" ");
+                state = temp[0];
+                value = parseFloat(temp[1]);
+
+                state = state.replace("(", "");
+                state = state.replace(")", "");
+
+                if(value != 70 && value > strategy_val[state]) {
+                    strategy_val[state] = value;
+                    if(strategy[state] == HIT) {
+                        strategy[state] = HSPLIT;
+                    } else if(strategy[state] == STAND) {
+                        strategy[state] = SSPLIT;
+                    } else {
+                        strategy[state] = DSPLIT;
+                    }
+                }
+            }
+        };
+
+        const render = async() => {
+            let table = document.querySelector("#player_no_ace tbody");
+
+            table.innerHTML = '<tr id="no_ace_header_row"></tr>';
+            header_row = table.querySelector("#no_ace_header_row");
+            pivot_cell = header_row.insertCell();
+            pivot_cell.className = "head_cell";
+            pivot_cell.innerText = 'Player Sum \\ Dealer Sum';
+
+            for(dealer_sum = DEALER_MIN; dealer_sum <= DEALER_MAX; dealer_sum++) {
+                cell = header_row.insertCell();
+                cell.className = "head_cell";
+                cell.innerText = dealer_sum;
+            }
+
+            for(player_sum = PLAYER_MIN; player_sum <= PLAYER_MAX; player_sum++) {
+                row = table.insertRow();
+                head_cell = row.insertCell();
+                head_cell.className = "head_cell";
+                head_cell.innerText = player_sum;
+                for(dealer_sum = DEALER_MIN; dealer_sum <= DEALER_MAX; dealer_sum++) {
+                    cell = row.insertCell();
+                    state = player_sum + ",0," + dealer_sum;
+                    action = strategy[state];
+
+                    if(action == HIT) action = "Hit";
+                    else if(action == STAND) action = "Stand";
+                    else if(action == DOUBLE) action = "Double";
+                    else if(action == HSPLIT) action = "Split/Hit";
+                    else if(action == SSPLIT) action = "Split/Stand";
+                    else if(action == DSPLIT) action = "Split/Double";
+
+                    if(strategy_val[state] == 0) {
+                        action = "-";
+                    }
+
+                    console.log(state + " => " + action);
+
+                    cell.className = action.replace("/", "");
+                    cell.innerText = action;
+                }
+            }
+
+            table = document.querySelector("#player_has_ace tbody");
+
+            table.innerHTML = '<tr id="has_ace_header_row"></tr>';
+            header_row = table.querySelector("#has_ace_header_row");
+            pivot_cell = header_row.insertCell();
+            pivot_cell.className = "head_cell";
+            pivot_cell.innerText = 'Player Sum \\ Dealer Sum';
+
+            for(dealer_sum = DEALER_MIN; dealer_sum <= DEALER_MAX; dealer_sum++) {
+                cell = header_row.insertCell();
+                cell.className = "head_cell";
+                cell.innerText = dealer_sum;
+            }
+
+            for(player_sum = PLAYER_MIN; player_sum <= 10; player_sum++) {
+                row = table.insertRow();
+                head_cell = row.insertCell();
+                head_cell.className = "head_cell";
+                head_cell.innerText = player_sum;
+                for(dealer_sum = DEALER_MIN; dealer_sum <= DEALER_MAX; dealer_sum++) {
+                    cell = row.insertCell();
+                    state = player_sum + ",1," + dealer_sum;
+                    action = strategy[state];
+
+                    if(action == HIT) action = "Hit";
+                    else if(action == STAND) action = "Stand";
+                    else if(action == DOUBLE) action = "Double";
+                    else if(action == HSPLIT) action = "Split/Hit";
+                    else if(action == SSPLIT) action = "Split/Stand";
+                    else if(action == DSPLIT) action = "Split/Double";
+
+                    if(strategy_val[state] == 0) {
+                        action = "-";
+                    }
+                    
+                    cell.className = action.replace("/", "");
+                    cell.innerText = action;
+                }
+            }
+        };
+
+        buildChart();
+
+    </script>
+
+    <style>
+        table, td {
+            border: 1px solid black;
+            text-align: center;
+        }
+
+        .Hit {
+            background-color: lightgreen;
+        }
+
+        .Stand {
+            background-color: red;
+        }
+
+        .Double {
+            background-color: gold;
+        }
+
+        .SplitHit {
+            background-color: lightgreen;
+        }
+
+        .SplitStand {
+            background-color: red;
+        }
+
+        .SplitDouble {
+            background-color: gold;
+        }
+    </style>
+
+</html>
