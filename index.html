@@ -6,9 +6,17 @@
 
     <body>
         <h1>Blackjack Cheatsheet</h1>
-        <h2>Without Ace</h2>
+        <section>
+            <h2>Instruction</h2>
+            H: Hit<br>
+            S: Stand<br>
+            D: Double down<br>
+            Sp/H: Split if possible, otherwise hit<br>
+            Sp/S: Split if possible, otherwise stand<br>
+        </section>
+        <h2>Hard</h2>
         <table id="player_no_ace"><tbody></tbody></table>
-        <h2>With Ace</h2>
+        <h2>Soft</h2>
         <table id="player_has_ace"><tbody></tbody></table>
     </body>
 
@@ -19,6 +27,12 @@
         var HSPLIT = 3;
         var DSPLIT = 4;
         var SSPLIT = 5;
+
+        var H = "H";
+        var S = "S";
+        var D = "D";
+        var SpH = "Sp/H";
+        var SpS = "Sp/S";
 
         let strategy = {};
         let strategy_val = {};
@@ -133,7 +147,7 @@
                 cell.innerText = dealer_sum;
             }
 
-            for(player_sum = PLAYER_MIN; player_sum <= PLAYER_MAX; player_sum++) {
+            for(player_sum = PLAYER_MIN + 2; player_sum <= PLAYER_MAX; player_sum++) {
                 row = table.insertRow();
                 head_cell = row.insertCell();
                 head_cell.className = "head_cell";
@@ -143,12 +157,11 @@
                     state = player_sum + ",0," + dealer_sum;
                     action = strategy[state];
 
-                    if(action == HIT) action = "Hit";
-                    else if(action == STAND) action = "Stand";
-                    else if(action == DOUBLE) action = "Double";
-                    else if(action == HSPLIT) action = "Split/Hit";
-                    else if(action == SSPLIT) action = "Split/Stand";
-                    else if(action == DSPLIT) action = "Split/Double";
+                    if(action == HIT) action = H;
+                    else if(action == STAND) action = S;
+                    else if(action == DOUBLE) action = D;
+                    else if(action == HSPLIT) action = SpH;
+                    else if(action == SSPLIT) action = SpS;
 
                     if(strategy_val[state] == 0) {
                         action = "-";
@@ -185,12 +198,11 @@
                     state = player_sum + ",1," + dealer_sum;
                     action = strategy[state];
 
-                    if(action == HIT) action = "Hit";
-                    else if(action == STAND) action = "Stand";
-                    else if(action == DOUBLE) action = "Double";
-                    else if(action == HSPLIT) action = "Split/Hit";
-                    else if(action == SSPLIT) action = "Split/Stand";
-                    else if(action == DSPLIT) action = "Split/Double";
+                    if(action == HIT) action = H;
+                    else if(action == STAND) action = S;
+                    else if(action == DOUBLE) action = D;
+                    else if(action == HSPLIT) action = SpH;
+                    else if(action == SSPLIT) action = SpS;
 
                     if(strategy_val[state] == 0) {
                         action = "-";
@@ -207,28 +219,34 @@
     </script>
 
     <style>
-        table, td {
+        table {
             border: 1px solid black;
             text-align: center;
         }
+        
+        td {
+            border: 1px solid black;
+            text-align: center;
+            width: 50px;
+        }
 
-        .Hit {
+        .H {
             background-color: lightgreen;
         }
 
-        .Stand {
+        .S {
             background-color: red;
         }
 
-        .Double {
+        .D {
             background-color: gold;
         }
 
-        .SplitHit {
+        .SpH {
             background-color: lightgreen;
         }
 
-        .SplitStand {
+        .SpS {
             background-color: red;
         }
 

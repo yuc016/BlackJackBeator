@@ -10,10 +10,10 @@ from test import *
 # -- Configurations --
 AI_FILE = "saved"
 LOAD = True                  # Load saved AI knowedge from file
-FAST_LEARN = False           # Do Q-Learning and store to file
+FAST_LEARN = True           # Do Q-Learning and store to file
 LEARN_ITERATIONS = 50000000  # Number of Q-Learning iterations
 FAST_SIM = True              # Simulate games
-SIM_ITERATIONS = 10000000    # Number of simulations to run
+SIM_ITERATIONS = 1000000    # Number of simulations to run
 GAMES_PER_STAT_TRACK = 200
 # -- Configurations --
 

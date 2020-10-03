@@ -1,7 +1,7 @@
 import copy
 import random
 
-from game import Game, states, BET, WIN_STATE, LOSE_STATE, DRAW_STATE, BLACKJACK_STATE, SIMPLE_STATE, CAN_SPLIT, HIT, STAND, DOUBLE, SPLIT
+from game import Game, states, BET, WIN_STATE, LOSE_STATE, DRAW_STATE, BLACKJACK_STATE, SIMPLE_STATE, CAN_SPLIT, CAN_DOUBLE, HIT, STAND, DOUBLE, SPLIT
 
 DISCOUNT = 0.97 #This is the gamma value for all value calculations
 FAST_LEARN = True
