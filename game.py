@@ -45,9 +45,9 @@ for rank in ranks:
         cards.append((rank, suit))
 
 '''
-    State representation: (user_sum, user_has_Ace, dealer_first)
-        - user_sum: sum of user's cards' value, where A counts as 1. Possible values are 2 to 20
-        - user_has_Ace: whether user has at least one Ace. Possible values are 0 and 1
+    State representation: (player_sum, player_has_Ace, dealer_first)
+        - player_sum: sum of player's cards' value, where A counts as 1. Possible values are 2 to 20
+        - player_has_Ace: whether player has at least one Ace. Possible values are 0 and 1
         - dealer_first: the first card's value of dealer, where A counts as 1. Possible values are 1 to 10
 '''
 # Special states
@@ -61,14 +61,14 @@ states.append(WIN_STATE)
 states.append(LOSE_STATE)
 states.append(DRAW_STATE)
 states.append(BLACKJACK_STATE)
-for user_sum in range(2,21):
-    for user_has_Ace in range(0,2):
+for player_sum in range(2,21):
+    for player_has_Ace in range(0,2):
         for dealer_first in range(1,11):
             if SIMPLE_STATE:
-                states.append((user_sum, user_has_Ace, dealer_first))
+                states.append((player_sum, player_has_Ace, dealer_first))
             else:
                 for n in range(2**10):
-                    s = (user_sum, user_has_Ace, dealer_first,
+                    s = (player_sum, player_has_Ace, dealer_first,
                         n >> 9 & 0x1,
                         n >> 8 & 0x1,
                         n >> 7 & 0x1,
@@ -101,30 +101,40 @@ class Game:
         self.maxProfit = 0
         self.maxLoss = 0
         self.amountPlayed = 0
+        self.maxContinuousLoss = 0
+        self.currContinuousLoss = 0
+        self.maxContinuousWin = 0
+        self.currContinuousWin = 0
+
         self.bet = 0
         self.playing_cards = []
         self.card_counts = [0] * 10
+        self.true_count = 0
+
         self.doubledown = False
         self.stand = False
-        self.user_sum = 0
-        self.userCards = []
-        self.dealCards = []
-        self.user_cards = 0
-        self.dealer_first = None
-        self.state = None
-        self.user_A = 0
-        self.__dealer_A = 0
+
+        self.player_sum = 0
+        self.playerCards = []
         self.__dealer_sum = 0
+        self.dealCards = []
+        self.player_A = 0
+        self.__dealer_A = 0
+
+        self.num_player_cards = 0
+        self.dealer_first = None
+
+        self.state = None
         self.reset()
 
     def reset(self):
         # Restart the game
-        self.userCards = []
+        self.playerCards = []
         self.dealCards = []
         self.stand = False
         self.bet = BET
         self.doubledown = False
-        self.init_cards(self.userCards, self.dealCards)
+        self.init_cards(self.playerCards, self.dealCards)
 
     # Generate new decks of playing cards
     def new_decks(self):
@@ -138,6 +148,7 @@ class Game:
         for i in range(9):
             self.card_counts[i] = 4 * NUM_DECK
         self.card_counts[9] = 16 * NUM_DECK # Ten's value cards
+        self.true_count = 0
 
     def remove_rank(self, rank_num):
         rank = ""
@@ -165,10 +176,16 @@ class Game:
         rank = card_removed[0]
         if rank == "ace":
             self.card_counts[0] -= 1
+            self.true_count -= 1
         elif rank == "jack" or rank == "queen" or rank == "king":
             self.card_counts[9] -= 1
+            self.true_count -= 1
         else:
             self.card_counts[int(rank)-1] -= 1
+            if int(rank) < 7:
+                self.true_count += 1
+            if int(rank) == 10:
+                self.true_count -= 1
     
     def cards_sufficient(self):
         return len(self.playing_cards) > NUM_DECK * 52 // 6
@@ -178,26 +195,26 @@ class Game:
         if not self.cards_sufficient():
             self.new_decks()
 
-        # Generates two cards for dealer and user, one at a time for each.
+        # Generates two cards for dealer and player, one at a time for each.
         # Returns if card is Ace and the total amount of the cards per person.
-        user_A = 0
+        player_A = 0
         dealer_A = 0
 
         card_1, card_A = self.gen_card(uList)
-        user_A += card_A
+        player_A += card_A
         card_2, card_A = self.gen_card(dList)
         dealer_A += card_A
         card_3, card_A = self.gen_card(uList)
-        user_A += card_A
+        player_A += card_A
         card_4, card_A = self.gen_card(dList)
         dealer_A += card_A
 
-        # Number of user's cards
-        self.user_cards = 2
-        # Sum of user's cards
-        self.user_sum = get_amt(card_1) + get_amt(card_3)
-        # Number of user's Aces
-        self.user_A = user_A
+        # Number of player's cards
+        self.num_player_cards = 2
+        # Sum of player's cards
+        self.player_sum = get_amt(card_1) + get_amt(card_3)
+        # Number of player's Aces
+        self.player_A = player_A
         # Sum of dealer's cards (including hidden one)
         self.__dealer_sum = get_amt(card_2) + get_amt(card_4)
         # Number of all dealer's Aces (including hidden one)
@@ -212,26 +229,29 @@ class Game:
         return self.stand or self.state == WIN_STATE or self.state == LOSE_STATE or self.state == DRAW_STATE or self.state == BLACKJACK_STATE
 
     def gen_card(self, xList):
-        # Generate and remove an card to append to xList.
+        # Generate and remove a card to append to xList.
         # Return the card, and whether the card is an Ace
         cA = 0
         card = random.choice(self.playing_cards)
+
         self.playing_cards.remove(card)
         self.update_card_count(card)
         xList.append(card)
+
         if card[0] == 'ace':
             cA = 1
+
         return card, cA
 
     def make_state(self):
         # Calculate actual hands after counting A as 11 as needed
-        actual_user_sum, user_A_active = self.calculate_hand(self.user_sum, self.user_A)
+        actual_player_sum, player_A_active = self.calculate_hand(self.player_sum, self.player_A)
         actual_dealer_sum, _ = self.calculate_hand(self.__dealer_sum, self.__dealer_A)
 
-        # If user gets 21, user wins unless dealer also gets 21
+        # If player gets 21, player wins unless dealer also gets 21
         dealer_bj = len(self.dealCards) == 2 and actual_dealer_sum == 21
-        player_bj = self.user_cards == 2 and self.user_A
-        if actual_user_sum == 21:
+        player_bj = self.num_player_cards == 2 and self.player_A
+        if actual_player_sum == 21:
             # Call a stand for player, and don't make state again
             self.act_stand(False) 
             if player_bj:
@@ -248,24 +268,24 @@ class Game:
         if dealer_bj:
             return LOSE_STATE
         
-        # If user busts, user loses
-        if actual_user_sum > 21:
+        # If player busts, player loses
+        if actual_player_sum > 21:
             return LOSE_STATE
         
-        # If user stands, check results
+        # If player stands, check results
         if self.stand:
-            # User wins if dealer busts or dealer gets smaller results
-            if actual_dealer_sum > 21 or actual_user_sum > actual_dealer_sum:
+            # player wins if dealer busts or dealer gets smaller results
+            if actual_dealer_sum > 21 or actual_player_sum > actual_dealer_sum:
                 return WIN_STATE
-            elif actual_dealer_sum == actual_user_sum:
+            elif actual_dealer_sum == actual_player_sum:
                 return DRAW_STATE
             return LOSE_STATE
 
         # Otherwise, return the state representation (see line 36 for explaination)
-        if self.user_A:
-            user_has_Ace = 1
+        if self.player_A:
+            player_has_Ace = 1
         else:
-            user_has_Ace = 0
+            player_has_Ace = 0
         
         has_card = [0] * 10
         for i in range(10):
@@ -273,8 +293,8 @@ class Game:
                 has_card[i] = 1
 
         if SIMPLE_STATE:
-            return (self.user_sum, user_has_Ace, self.dealer_first)
-        return (self.user_sum, user_has_Ace, self.dealer_first, *has_card)
+            return (self.player_sum, player_has_Ace, self.dealer_first)
+        return (self.player_sum, player_has_Ace, self.dealer_first, *has_card)
 
     @staticmethod
     def calculate_hand(card_sum, card_A):
@@ -287,22 +307,24 @@ class Game:
         
     def act_hit(self):
         # Give player a card
-        card, cA = self.gen_card(self.userCards)
-        self.user_A += cA
-        self.user_sum += get_amt(card)
-        self.user_cards += 1
+        card, cA = self.gen_card(self.playerCards)
+        self.player_A += cA
+        self.player_sum += get_amt(card)
+        self.num_player_cards += 1
         
-        # Make state based on the updated user cards
+        # Make state based on the updated player cards
         self.state = self.make_state()
 
     def act_stand(self, will_make_state=True):
+        #TODO: Dealer should not play if player wins with blackjack
+        
         # H17 rule: if dealer's cards contain A's, there is always one A that's counted as 11
         actual_dealer_sum, dealer_A_active = self.calculate_hand(self.__dealer_sum, self.__dealer_A)
-        actual_user_sum, _ = self.calculate_hand(self.user_sum, self.user_A)
+        actual_player_sum, player_A_active = self.calculate_hand(self.player_sum, self.player_A)
 
-        if actual_dealer_sum != 21:
+        if actual_dealer_sum != 21 and (not actual_player_sum == 21 or not player_A_active):
             # Dealer stops when it reaches 17
-            # while actual_dealer_sum < actual_user_sum and actual_dealer_sum < 17:
+            # while actual_dealer_sum < actual_player_sum and actual_dealer_sum < 17:
             while True:
                 if STAND_SOFT_17:
                     if actual_dealer_sum == 17 and not dealer_A_active:
@@ -329,18 +351,18 @@ class Game:
 
     def act_split(self):
         if self.can_split():
-            self.user_sum = get_amt(self.userCards[0])
-            self.user_cards -= 1
-            self.userCards.pop()
+            self.player_sum = get_amt(self.playerCards[0])
+            self.num_player_cards -= 1
+            self.playerCards.pop()
             self.state = self.make_state()
 
     def can_double(self):
-        if CAN_DOUBLE and self.doubledown == True and len(self.userCards) == 2:
+        if CAN_DOUBLE and self.doubledown == True and len(self.playerCards) == 2:
             return False
         return True
     
     def can_split(self):
-        if CAN_SPLIT and len(self.userCards) == 2 and self.userCards[0][0] == self.userCards[1][0]:
+        if CAN_SPLIT and len(self.playerCards) == 2 and self.playerCards[0][0] == self.playerCards[1][0]:
             return True
         return False
     
@@ -358,22 +380,34 @@ class Game:
     def update_stats(self):
         self.gameNum += 1
         self.amountPlayed += self.bet
+
+        profitDelta = 0
         if self.state == WIN_STATE:
             self.winNum += 1
-            self.profit += self.bet
+            profitDelta = self.bet
         elif self.state == BLACKJACK_STATE:
             self.blackjackNum += 1
-            self.profit += BLACKJACK_PAYRATE * BET
+            profitDelta = BLACKJACK_PAYRATE * self.bet
         elif self.state == DRAW_STATE:
             self.drawNum += 1
         elif self.state == LOSE_STATE:
             self.loseNum += 1
-            self.profit -= self.bet
+            profitDelta = 0 - self.bet
+
+        self.profit += profitDelta
         
         if self.profit > self.maxProfit:
             self.maxProfit = self.profit
         if self.profit < self.maxLoss:
             self.maxLoss = self.profit
+        
+        self.currContinuousLoss = min(self.currContinuousLoss + profitDelta, 0)
+        if self.currContinuousLoss < self.maxContinuousLoss:
+            self.maxContinuousLoss = self.currContinuousLoss
+
+        self.currContinuousWin = max(self.currContinuousWin + profitDelta, 0)
+        if self.currContinuousWin > self.maxContinuousWin:
+            self.maxContinuousWin = self.currContinuousWin
     
     def simulate_one_step(self, action):
         # If the current state is already terminal, return None
@@ -390,19 +424,27 @@ class Game:
 
     def print_counts(self):
         print(self.card_counts)
+        print(self.true_count)
 
     def sync(self, game):
         self.loseNum = game.loseNum
         self.drawNum = game.drawNum
         self.winNum = game.winNum
-        self.loseNum = game.loseNum
-        self.drawNum = game.drawNum
         self.blackjackNum = game.blackjackNum
         self.gameNum = game.gameNum
+        self.maxLoss = game.maxLoss
+        self.maxProfit = game.maxProfit
+        self.maxContinuousLoss = game.maxContinuousLoss
+        self.maxContinuousWin = game.maxContinuousWin
+        self.currContinuousLoss = game.currContinuousLoss
+        self.currContinuousWin = game.currContinuousWin
         self.profit = game.profit
         self.amountPlayed = game.amountPlayed
+
         self.playing_cards = game.playing_cards
         self.card_counts = game.card_counts
+        self.true_count = game.true_count
+
         self.dealCards = game.dealCards
         self.__dealer_sum = game.__dealer_sum
         self.__dealer_A = game.__dealer_A

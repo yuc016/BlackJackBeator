@@ -26,7 +26,7 @@ Rules of Blackjack
 2. Stand: player stops taking cards, and dealer starts playing with its policy (see below)
 3. Double: player doubles down on bet, but must stand after taking next card
 4. Split: player splits one game of two cards with same rank into two games and two bets, then plays      
-    seperately
+    seperately, (this project allows double after split)
 
 **Goal of the player**: Get a bigger sum than the dealer’s sum, without going over 21 (bust). 
 

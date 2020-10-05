@@ -7,16 +7,16 @@
     <body>
         <h1>Blackjack Cheatsheet</h1>
         <section>
-            <h2>Instruction</h2>
             H: Hit<br>
             S: Stand<br>
             D: Double down<br>
             Sp/H: Split if possible, otherwise hit<br>
             Sp/S: Split if possible, otherwise stand<br>
+            <strong>Note</strong>: When hovered on a state, the expected return when bet is 1 will be displayed
         </section>
-        <h2>Hard</h2>
+        <h2>Hard Total</h2>
         <table id="player_no_ace"><tbody></tbody></table>
-        <h2>Soft</h2>
+        <h2>Soft Total (Ace as 1)</h2>
         <table id="player_has_ace"><tbody></tbody></table>
     </body>
 
@@ -33,9 +33,15 @@
         var D = "D";
         var SpH = "Sp/H";
         var SpS = "Sp/S";
+        var SpD = "Sp/D";
 
         let strategy = {};
         let strategy_val = {};
+
+        let hit_val = {};
+        let stand_val = {};
+        let double_val = {};
+        let split_val = {};
 
         PLAYER_MIN = 2;
         PLAYER_MAX = 20;
@@ -72,16 +78,16 @@
 
                 value = value.replace("]", "");
                 temp = value.split(",");
-                hit_val = parseFloat(temp[0]);
-                stand_val = parseFloat(temp[1]);
+                hit_val[state] = parseFloat(temp[0]);
+                stand_val[state] = parseFloat(temp[1]);
 
-                if(hit_val > stand_val) {
+                if(hit_val[state] > stand_val[state]) {
                     strategy[state] = HIT;
-                    strategy_val[state] = hit_val;
+                    strategy_val[state] = hit_val[state];
                 }
                 else {
                     strategy[state] = STAND;
-                    strategy_val[state] = stand_val;
+                    strategy_val[state] = stand_val[state];
                 }
             }
 
@@ -98,6 +104,8 @@
 
                 state = state.replace("(", "");
                 state = state.replace(")", "");
+
+                double_val[state] = value;
 
                 if(value != 70 && value > strategy_val[state]) {
                     strategy_val[state] = value;
@@ -118,6 +126,8 @@
 
                 state = state.replace("(", "");
                 state = state.replace(")", "");
+
+                split_val[state] = value;
 
                 if(value != 70 && value > strategy_val[state]) {
                     strategy_val[state] = value;
@@ -144,7 +154,7 @@
             for(dealer_sum = DEALER_MIN; dealer_sum <= DEALER_MAX; dealer_sum++) {
                 cell = header_row.insertCell();
                 cell.className = "head_cell";
-                cell.innerText = dealer_sum;
+                cell.innerText = (dealer_sum == 1) ? "Ace" : dealer_sum;
             }
 
             for(player_sum = PLAYER_MIN + 2; player_sum <= PLAYER_MAX; player_sum++) {
@@ -162,15 +172,20 @@
                     else if(action == DOUBLE) action = D;
                     else if(action == HSPLIT) action = SpH;
                     else if(action == SSPLIT) action = SpS;
+                    else if(action == DSPLIT) action = SpD;
 
                     if(strategy_val[state] == 0) {
                         action = "-";
                     }
 
-                    console.log(state + " => " + action);
-
                     cell.className = action.replace("/", "");
                     cell.innerText = action;
+
+                    node = document.createElement("SPAN");
+                    node.innerHTML = "Hit: " + hit_val[state] + "<br>Stand: " + stand_val[state] + 
+                                    "<br>Double: " + double_val[state] + 
+                                    "<br>Split: " + ((split_val[state] == 70) ? "-" : split_val[state]);
+                    cell.appendChild(node);
                 }
             }
 
@@ -185,7 +200,7 @@
             for(dealer_sum = DEALER_MIN; dealer_sum <= DEALER_MAX; dealer_sum++) {
                 cell = header_row.insertCell();
                 cell.className = "head_cell";
-                cell.innerText = dealer_sum;
+                cell.innerText = (dealer_sum == 1) ? "Ace" : dealer_sum;
             }
 
             for(player_sum = PLAYER_MIN; player_sum <= 10; player_sum++) {
@@ -196,20 +211,27 @@
                 for(dealer_sum = DEALER_MIN; dealer_sum <= DEALER_MAX; dealer_sum++) {
                     cell = row.insertCell();
                     state = player_sum + ",1," + dealer_sum;
-                    action = strategy[state];
 
+                    action = strategy[state];
                     if(action == HIT) action = H;
                     else if(action == STAND) action = S;
                     else if(action == DOUBLE) action = D;
                     else if(action == HSPLIT) action = SpH;
                     else if(action == SSPLIT) action = SpS;
+                    else if(action == DSPLIT) action = SpD;
 
                     if(strategy_val[state] == 0) {
                         action = "-";
                     }
-                    
+
                     cell.className = action.replace("/", "");
                     cell.innerText = action;
+
+                    node = document.createElement("SPAN");
+                    node.innerHTML = "Hit: " + hit_val[state] + "<br>Stand: " + stand_val[state] + 
+                                    "<br>Double: " + double_val[state] + 
+                                    "<br>Split: " + ((split_val[state] == 70) ? "-" : split_val[state]);
+                    cell.appendChild(node);
                 }
             }
         };
@@ -250,8 +272,26 @@
             background-color: red;
         }
 
-        .SplitDouble {
+        .SpD {
             background-color: gold;
+        }
+
+        td span {
+            visibility: hidden;
+            background-color: lightgrey;
+            color: #000;
+            text-align: left;
+            padding: 5px;
+            border-radius: 6px;
+
+            opacity: 0.97;
+            
+            position: absolute;
+            z-index: 1;
+        }
+
+        td:hover span {
+            visibility: visible;
         }
     </style>
 

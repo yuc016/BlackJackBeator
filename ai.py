@@ -87,8 +87,8 @@ class Agent:
         return self.ai_decision(state, can_double, can_split)
 
     def ai_decision(self, state, can_double, can_split):
-        self.doubleQ = -100
-        self.splitQ = -100
+        self.doubleQ = float("-inf")
+        self.splitQ = float("-inf")
         if can_double:
             if SIMPLE_STATE:
                 self.doubleQ = self.double_values[state]
@@ -276,3 +276,10 @@ class Agent:
         print(f"\r  {name} {i + 1}/{n}", end="")
         if i == n - 1:
             print()
+
+    def calculate_bet_amount(self, true_count):
+        # return 3
+        if true_count < 0:
+            return 0
+        # return true_count
+        return min(100, true_count * 10 + 25)

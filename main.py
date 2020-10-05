@@ -10,10 +10,10 @@ from test import *
 # -- Configurations --
 AI_FILE = "saved"
 LOAD = True                  # Load saved AI knowedge from file
-FAST_LEARN = True           # Do Q-Learning and store to file
-LEARN_ITERATIONS = 50000000  # Number of Q-Learning iterations
+FAST_LEARN = False           # Do Q-Learning and store to file
+LEARN_ITERATIONS = 10000000  # Number of Q-Learning iterations
 FAST_SIM = True              # Simulate games
-SIM_ITERATIONS = 1000000    # Number of simulations to run
+SIM_ITERATIONS = 100000    # Number of simulations to run
 GAMES_PER_STAT_TRACK = 200
 # -- Configurations --
 
@@ -25,7 +25,7 @@ RED = (0xff, 0x44, 0x44)
 
 PADDING = 5
 
-GAME_OVER_TEXT_POS = (240, 20)
+GAME_OVER_TEXT_POS = (150, 300)
 
 OPS_BTN_Y = 430
 OPS_TXT_Y = OPS_BTN_Y + 3
@@ -107,15 +107,23 @@ class GameRunner:
 
             while i < SIM_ITERATIONS:
                 if self.game.game_over() or self.game.stand:
-                        self.game.update_stats()
+                    self.game.update_stats()
+                    if len(self.parallel_games) != 0:
+                        self.parallel_games[0].sync(self.game)
+                        self.game = self.parallel_games[0]
+                        self.parallel_games.pop(0)
+                    else:
+                        bet = self.agent.calculate_bet_amount(self.game.true_count)
                         self.game.reset()
-                        i += 1
-                        if i % (SIM_ITERATIONS / 10) == 0:
-                            print("[ ", i * 100 / SIM_ITERATIONS, "%]")
-                        if self.game.gameNum % GAMES_PER_STAT_TRACK == 0 and self.game.gameNum != 0:
-                            results_100_games_file.write(str(self.game.profit - last_checked_profit))
-                            results_100_games_file.write("\n")
-                            last_checked_profit = self.game.profit
+                        self.game.bet = bet
+
+                    i += 1
+                    if i % (SIM_ITERATIONS / 10) == 0:
+                        print("[ ", i * 100 / SIM_ITERATIONS, "%]")
+                    if self.game.gameNum % GAMES_PER_STAT_TRACK == 0 and self.game.gameNum != 0:
+                        results_100_games_file.write(str(self.game.profit - last_checked_profit))
+                        results_100_games_file.write("\n")
+                        last_checked_profit = self.game.profit
                 else:
                     decision = self.agent.autoplay_decision(self.game.state, self.game.can_double(), self.game.can_split())
                     if decision == HIT:
@@ -131,27 +139,31 @@ class GameRunner:
             self.render_board()
 
         while True:
-            display_changed = False
+            update_display = False
 
             # Our state information does not take into account of number of cards
             if self.autoQL:
                 #Q-Learning
-                #For each state, compute the Q value of the action "Hit" and "Stand"
+                # For each state, compute the Q value of the action "Hit" and "Stand"
                 self.agent.Q_run(5)
+                update_display = True
             
             if self.autoPlay:
+                update_display = True
                 if self.game.game_over():
-                    display_changed = True
                     self.game.update_stats()
+
+                    # Check if there is a splitted game
                     if len(self.parallel_games) != 0:
                         self.parallel_games[0].sync(self.game)
                         self.game = self.parallel_games[0]
                         self.parallel_games.pop(0)
                     else:
+                        bet = self.agent.calculate_bet_amount(self.game.true_count)
                         self.game.reset()
-
+                        self.game.bet = bet
                 else:
-                    # if self.game.dealCards[0][0] == "ace" or self.game.dealCards[1][0] == "ace":
+                    # if (self.game.playerCards[0][0] == "ace" or self.game.playerCards[0][0] == "ace") and self.game.dealCards[1][0] != "ace":
                     #     self.autoPlay = False
                     #     continue
                     decision = self.agent.autoplay_decision(copy.deepcopy(self.game.state), self.game.can_double(), self.game.can_split())
@@ -163,16 +175,16 @@ class GameRunner:
                         self.game.act_double()
                     elif decision == SPLIT:
                         self.split_games()
-                
-            self.handle_user_action()
-            self.render_board()
+        
+            if self.handle_user_action() or update_display:
+                self.render_board()
     
     def split_games(self):
         self.game.act_split()
         self.parallel_games.append(copy.deepcopy(self.game))
         self.game.act_hit()
         self.parallel_games[len(self.parallel_games)-1].act_hit()
-        if self.game.userCards[0][0] == "ace":
+        if self.game.playerCards[0][0] == "ace":
             self.game.act_stand()
             self.parallel_games[len(self.parallel_games)-1].act_stand()
             
@@ -216,7 +228,9 @@ class GameRunner:
 
         return self.game.game_over() and not self.autoPlay and (clicked or pressed)
     
+    # Return whether to change display
     def handle_user_action(self):
+        update_display = False
         for event in pygame.event.get():
             if event.type == QUIT:
                 pygame.quit()
@@ -225,21 +239,20 @@ class GameRunner:
                 self.autoQL = not self.autoQL
             elif self.check_act_autoplay(event):
                 self.autoPlay = not self.autoPlay
-            
             elif self.check_act_hit(event):
                 self.game.act_hit()
-                
+                update_display = True
             elif self.check_act_stand(event):
                 self.game.act_stand()
-
+                update_display = True
             elif self.check_act_double(event):
                 if self.game.can_double():
                     self.game.act_double()
-
+                    update_display = True
             elif self.check_act_split(event):
                 if self.game.can_split():
                     self.split_games()
-
+                    update_display = True
             elif self.check_reset(event):
                 self.game.update_stats()
                 if len(self.parallel_games) != 0:
@@ -248,8 +261,10 @@ class GameRunner:
                     self.game = self.parallel_games[last_index]
                     self.parallel_games.pop()
                 else:
+                    bet = self.agent.calculate_bet_amount(self.game.true_count)
                     self.game.reset()
-            
+                    self.game.bet = bet
+                update_display = True
             if event.type == KEYDOWN:
                 if event.key == K_x:
                     pygame.quit()
@@ -258,10 +273,13 @@ class GameRunner:
                     self.agent.save("saved")
                 elif event.key == K_2:
                     self.agent.load("saved")
+                    update_display = True
                 if event.key == K_p:
                     self.game.print_counts()
                 if event.key == K_v:
                     self.agent.print_decision_value()
+            
+            return update_display
     
     @staticmethod
     def draw_label_hl(surface, pos, label, padding=PADDING, bg=WHITE, wd=2, border=True):
@@ -276,15 +294,10 @@ class GameRunner:
             pygame.draw.rect(surface, color, (x, y, w, h), width)
 
     def render_board(self):
-        winTxt = self.font.render('Wins: {}'.format(self.game.winNum), 1, WHITE)
-        loseTxt = self.font.render('Losses: {}'.format(self.game.loseNum), 1, WHITE)
-        drawTxt = self.font.render('Draws: {}'.format(self.game.drawNum), 1, WHITE)
-        blackjackTxt = self.font.render('BlackJacks: {}'.format(self.game.blackjackNum), 1, WHITE)
-        profitTxt = self.font.render('Profit: {}'.format(self.game.profit), 1, WHITE)
-        amountTxt = self.font.render('Amount played: {}'.format(self.game.amountPlayed), 1, WHITE)
-        maxLossTxt = self.font.render('Max loss: {}'.format(self.game.maxLoss), 1, WHITE)
-        maxWinTxt = self.font.render('Max win: {}'.format(self.game.maxProfit), 1, WHITE)
+        currTrueCountTxt = self.font.render('True count: {}'.format(self.game.true_count), 1, WHITE)
+        currBetTxt = self.font.render('Bet: {}'.format(self.game.bet), 1, WHITE)
 
+        # Game Stats
         if self.game.gameNum == 0:
             win_rate = 0
             draw_rate = 0
@@ -295,17 +308,27 @@ class GameRunner:
             win_rate = self.game.winNum / self.game.gameNum
             draw_rate = self.game.drawNum / self.game.gameNum
             lose_rate = self.game.loseNum / self.game.gameNum
+
+        numGameTxt = self.font.render('Number of games: {}'.format(self.game.gameNum), 1, WHITE)
         blackjack_rate_txt = self.font.render('Blackjack rate: {:.2f}%'.format(blackjack_rate * 100), 1, WHITE)
         win_rate_txt = self.font.render('Win rate: {:.2f}%'.format(win_rate * 100), 1, WHITE)
         draw_rate_txt = self.font.render('Draw rate: {:.2f}%'.format(draw_rate * 100), 1, WHITE)
         lose_rate_txt = self.font.render('Loss rate: {:.2f}%'.format(lose_rate * 100), 1, WHITE)
             
+        # Bank Stats
+        amountTxt = self.font.render('Amount played: {}'.format(self.game.amountPlayed), 1, WHITE)
+        maxWinTxt = self.font.render('Max win: {}'.format(self.game.maxProfit), 1, WHITE)
+        maxLossTxt = self.font.render('Max loss: {}'.format(self.game.maxLoss), 1, WHITE)
+        maxContLossTxt = self.font.render('Max continuous loss: {}'.format(self.game.maxContinuousLoss), 1, WHITE)
+        maxContWinTxt = self.font.render('Max continuous win: {}'.format(self.game.maxContinuousWin), 1, WHITE)
+        profitTxt = self.font.render('Profit: {}'.format(self.game.profit), 1, WHITE)
+
         button_colors = [RED, GREEN]
         self.QLB = pygame.draw.rect(self.background, button_colors[self.autoQL], (350, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
         self.playB = pygame.draw.rect(self.background, button_colors[self.autoPlay], (435, OPS_BTN_Y, 115, OPS_BTN_HEIGHT))
 
 
-        state_info = self.font.render('State (user_sum, user_has_Ace, dealer_first) ={}'.format(self.game.state), 1, BLACK)
+        state_info = self.font.render('State (player_sum, player_has_Ace, dealer_first) ={}'.format(self.game.state), 1, BLACK)
 
         QV = self.font.render('Current stats\'s Q values ([Hit, Stand], #samples): ([{:f},{:f}], {})'.format(
             self.agent.Q_values[self.game.state][0],
@@ -345,24 +368,27 @@ class GameRunner:
         self.screen.blit(QV, (20, 220))
         self.screen.blit(STRATEGY, (20, 240))
 
-        self.screen.blit(self.splitHandTxt, (350, 300))
-        self.screen.blit(winTxt, (500, 10))
-        self.screen.blit(blackjackTxt, (500, 30))
-        self.screen.blit(drawTxt, (500, 50))
-        self.screen.blit(loseTxt, (500, 70))
-        self.screen.blit(profitTxt, (500, 90))
-        self.screen.blit(amountTxt, (500, 110))
-        self.screen.blit(maxLossTxt, (500, 130))
-        self.screen.blit(maxWinTxt, (500, 150))
-        self.screen.blit(blackjack_rate_txt, (350, 40))
-        self.screen.blit(win_rate_txt, (350, 65))
-        self.screen.blit(draw_rate_txt, (350, 90))
-        self.screen.blit(lose_rate_txt, (350, 115))
+        self.screen.blit(currBetTxt, (200, 10))
+        self.screen.blit(currTrueCountTxt, (200, 30))
 
+        self.screen.blit(numGameTxt, (350, 10))
+        self.screen.blit(blackjack_rate_txt, (350, 30))
+        self.screen.blit(win_rate_txt, (350, 50))
+        self.screen.blit(draw_rate_txt, (350, 70))
+        self.screen.blit(lose_rate_txt, (350, 90))
+
+        self.screen.blit(amountTxt, (500, 10))
+        self.screen.blit(maxWinTxt, (500, 30))
+        self.screen.blit(maxLossTxt, (500, 50))
+        self.screen.blit(maxContLossTxt, (500, 70))
+        self.screen.blit(maxContWinTxt, (500, 90))
+        self.screen.blit(profitTxt, (500, 110))
+
+        self.screen.blit(self.splitHandTxt, (350, 300))
         self.screen.blit(self.save_instr, (350, 380))
         self.screen.blit(self.load_instr, (350, 400))
 
-        for i, card in enumerate(self.game.userCards):
+        for i, card in enumerate(self.game.playerCards):
             x = 10 + i * 20
             self.screen.blit(self.card_imgs[card], (x, USR_CARD_HEIGHT))
         
