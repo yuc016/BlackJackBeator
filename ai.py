@@ -59,7 +59,6 @@ class Agent:
                     self.Q_values[state][action] += (sample - self.Q_values[state][action]) * self.alpha(self.N_Q[state])
                 reward = n_reward
                 state = n_state
-
             
             if FAST_LEARN and simulation % (num_simulation / 10) == 0:
                 print(simulation * 100 / num_simulation, "%")
@@ -278,7 +277,6 @@ class Agent:
             print()
 
     def calculate_bet_amount(self, true_count):
-        # return 3
         if true_count < 0:
             return 0
         # return true_count
