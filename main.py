@@ -5,14 +5,13 @@ import sys, copy, random, argparse, os
 from game import Game, cards, HIT, STAND, DOUBLE, SPLIT, WIN_STATE, LOSE_STATE, DRAW_STATE, BLACKJACK_STATE
 from ai import Agent
 
-from test import *
 
 # -- Configurations --
 AI_FILE = "saved"
-LOAD = True                  # Load saved AI knowedge from file
+LOAD = False                  # Load saved AI knowedge from file
 FAST_LEARN = False           # Do Q-Learning and store to file
 LEARN_ITERATIONS = 10000000  # Number of Q-Learning iterations
-FAST_SIM = True              # Simulate games
+FAST_SIM = False              # Simulate games
 SIM_ITERATIONS = 100000    # Number of simulations to run
 GAMES_PER_STAT_TRACK = 200
 # -- Configurations --
@@ -25,6 +24,7 @@ RED = (0xff, 0x44, 0x44)
 
 PADDING = 5
 
+WINDOW_SIZE = (800, 600)
 GAME_OVER_TEXT_POS = (150, 300)
 
 OPS_BTN_Y = 430
@@ -44,7 +44,7 @@ class GameRunner:
         self.parallel_games = []
 
         if LOAD:
-            print("Loading..")
+            print("Loading AI knowledge..")
             self.agent.load(AI_FILE)
         
         if FAST_LEARN:
@@ -70,7 +70,7 @@ class GameRunner:
     def init_display(self):
         #Initialize Game
         pygame.init()
-        self.screen = pygame.display.set_mode((640, 480))
+        self.screen = pygame.display.set_mode(WINDOW_SIZE)
         pygame.display.set_caption('Blackjack')
         self.font = pygame.font.SysFont("arial", 15)
         
