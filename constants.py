@@ -19,9 +19,9 @@ USR_CARD_HEIGHT = 275
 ## Program behavior ##
 AI_FILE = "saved"
 LOAD_AI = True             # Load saved AI knowedge from file
-FAST_LEARN = True           # Do Q-Learning and store to file
-LEARN_ITERATIONS = 1000000    # Number of Q-Learning iterations
-FAST_SIM = True             # Simulate games
+FAST_LEARN = False           # Do Q-Learning and store to file
+LEARN_ITERATIONS = 10000    # Number of Q-Learning iterations
+FAST_SIM = False             # Simulate games
 SIM_ITERATIONS = 100000      # Number of simulations to run
 
 ## Statistics ## 
@@ -39,6 +39,7 @@ HIT_SOFT_17 = False         # Whether dealer will hit on soft 17 (sum of 17 with
 ALLOW_SPLIT = True
 ALLOW_DOUBLE = True
 DOUBLE_WITH_2_CARDS_ONLY = True
+ACE_SPLIT_DEAL_ONE_CARD = True
 BLACKJACK_PAYRATE = 1.5
 
 

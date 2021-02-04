@@ -132,7 +132,7 @@ class Game:
         actual_dealer_sum, _ = self.calculate_hand(self.dealer_sum, self.dealer_has_ace)
 
         dealer_bj = len(self.dealer_cards) == 2 and actual_dealer_sum == 21
-        player_bj = len(self.player_cards) == 2 and self.player_has_ace
+        player_bj = len(self.player_cards) == 2 and actual_player_sum == 21
 
         # Dealer blackjack
         if dealer_bj:
