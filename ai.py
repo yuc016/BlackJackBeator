@@ -1,13 +1,11 @@
 import copy
 import random
 
-from game import Game, states, BET, WIN_STATE, LOSE_STATE, DRAW_STATE, BLACKJACK_STATE, SIMPLE_STATE, CAN_SPLIT, CAN_DOUBLE, HIT, STAND, DOUBLE, SPLIT
-
-DISCOUNT = 0.97 #This is the gamma value for all value calculations
-FAST_LEARN = True
+from game import Game
+from constants import *
 
 class Agent:
-    def __init__(self):
+    def __init__(self, smart_bet=False):
         # For Q-learning values
         self.Q_values = {}      # Dictionary storing the Q-Learning [HIT, STAND] values of each state
         self.double_values = {} # Dictionary storing the DOUBLE values of each state
@@ -19,8 +17,10 @@ class Agent:
         self.doubleQ = 0
         self.splitQ = 0
 
+        self.smart_bet = smart_bet
+
         # Initialization of the values
-        for s in states:
+        for s in STATES:
             self.Q_values[s] = [0,0] # First element is the Q value of "Hit", second element is the Q value of "Stand"
             self.double_values[s] = 70
             self.split_values[s] = 70
@@ -31,7 +31,7 @@ class Agent:
     # Learning rate for Q-Learning
     @staticmethod
     def alpha(n):
-        return 10.0/(9 + n)
+        return 5.0/(4 + n)
 
     # Explore vs. Exploit probability
     @staticmethod
@@ -39,10 +39,10 @@ class Agent:
         return 1
         return 40000/(39999 + n)
     
-    def Q_run(self, num_simulation, tester=False):
+    def Q_run(self, num_simulation, print_stat=False):
         # Perform num_simulation rounds of simulations of gameplay
         for simulation in range(num_simulation):
-            self.simulator.reset()
+            self.simulator.reset_game()
 
             state = self.simulator.state
             reward = self.simulator.check_reward()
@@ -50,21 +50,24 @@ class Agent:
                 epsilon = self.epsilon(self.N_Q[state])
                 action = self.pick_action(state, epsilon)
                 n_state, n_reward = self.simulator.simulate_one_step(action)
+                
                 self.N_Q[state] += 1
+
                 if n_state == None:
                     self.Q_values[state][action] += (reward - self.Q_values[state][action]) * self.alpha(self.N_Q[state])
                     break
                 else:
                     sample = reward + DISCOUNT * max(self.Q_values[n_state])
                     self.Q_values[state][action] += (sample - self.Q_values[state][action]) * self.alpha(self.N_Q[state])
+                    
                 reward = n_reward
                 state = n_state
             
-            if FAST_LEARN and simulation % (num_simulation / 10) == 0:
+            if print_stat and simulation % (num_simulation / 10) == 0:
                 print(simulation * 100 / num_simulation, "%")
 
-        if SIMPLE_STATE:
-            for s in states:
+        if USE_SIMPLE_STATES:
+            for s in STATES:
                 self.double_values[s] = 70
                 self.double_values[s] = self.calculate_double_value(s)
                 self.split_values[s] = 70
@@ -89,12 +92,12 @@ class Agent:
         self.doubleQ = float("-inf")
         self.splitQ = float("-inf")
         if can_double:
-            if SIMPLE_STATE:
+            if USE_SIMPLE_STATES:
                 self.doubleQ = self.double_values[state]
             else:
                 self.doubleQ = self.calculate_double_value(state)
         if can_split:
-            if SIMPLE_STATE:
+            if USE_SIMPLE_STATES:
                 self.splitQ = self.calculate_split_value(state)
             else:
                 raise NotImplemented
@@ -122,7 +125,7 @@ class Agent:
 
     # Inaccuacy: Consider 21 a win, but can still be a push
     def calculate_double_value(self, state):
-        if state == WIN_STATE or state == LOSE_STATE or state == DRAW_STATE or state == BLACKJACK_STATE:
+        if state == STATE_WIN or state == STATE_LOSE or state == STATE_DRAW or state == STATE_BLACKJACK:
             return 0
 
         # If double value for the state is previously calculated and saved
@@ -132,10 +135,10 @@ class Agent:
         sum = 0
         count = 0
 
-        if SIMPLE_STATE:
+        if USE_SIMPLE_STATES:
             new_state = (state[0] + 1, 1, *(state[2:]))
             if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                sum += BET * 1.8
+                sum += 1.8
             # stand value of the next state
             else:
                 sum += self.Q_values[new_state][STAND] * 2
@@ -144,12 +147,12 @@ class Agent:
                 i = min(10, i)
                 new_state = (state[0] + i, *(state[1:]))
                 if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                    sum += BET * 1.8
-                elif new_state in states:
+                    sum += 1.8
+                elif new_state in STATES:
                     sum += self.Q_values[new_state][STAND] * 2
                 # busted
                 else:
-                    sum -= BET * 2
+                    sum -= 2
 
             return sum / 13
 
@@ -159,7 +162,7 @@ class Agent:
             new_state = (state[0] + 1, 1, *(state[2:]))
             # 21 considered win
             if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                sum += BET * 2
+                sum += 2
             # stand value of the next state
             else:
                 sum += self.Q_values[new_state][STAND] * 2
@@ -171,12 +174,12 @@ class Agent:
             if state[i] == 1:
                 new_state = (state[0] + i-3, *(state[1:]))
                 if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                    sum += BET * 2
-                elif new_state in states:
+                    sum += 2
+                elif new_state in STATES:
                     sum += self.Q_values[new_state][STAND] * 2
                 # busted
                 else:
-                    sum -= BET * 2
+                    sum -= 2
                 count += 1
             
         
@@ -185,8 +188,8 @@ class Agent:
             for x in range(4):
                 new_state = (state[0] + 10, *(state[1:]))
                 if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                    sum += BET * 2
-                elif new_state in states:
+                    sum += 2
+                elif new_state in STATES:
                     sum += self.Q_values[new_state][STAND] * 2
                 else:
                     sum -= BET * 2
@@ -200,7 +203,7 @@ class Agent:
 
     # Inaccuacy: Consider 21 a win, but can still be a push
     def calculate_split_value(self, state):
-        if state == WIN_STATE or state == LOSE_STATE or state == DRAW_STATE or state == BLACKJACK_STATE:
+        if state == STATE_WIN or state == STATE_LOSE or state == STATE_DRAW or state == STATE_BLACKJACK:
             return 0
 
         # If split value for the state is previously calculated and saved
@@ -209,13 +212,13 @@ class Agent:
 
         sum = 0
 
-        if SIMPLE_STATE:
+        if USE_SIMPLE_STATES:
             new_state = (state[0] / 2 + 1, 1, state[2])
             if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                sum += BET * 0.8
+                sum += 0.8
             # max value of the next state
             else:
-                if CAN_DOUBLE:
+                if ALLOW_DOUBLE:
                     sum += max(self.Q_values[new_state][STAND], 
                             self.Q_values[new_state][HIT], 
                             self.calculate_double_value(new_state))
@@ -227,9 +230,9 @@ class Agent:
                 i = min(10, i)
                 new_state = (state[0] / 2 + i, *(state[1:]))
                 if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                    sum += BET * 0.8
-                elif new_state in states:
-                    if CAN_DOUBLE:
+                    sum += 0.8
+                elif new_state in STATES:
+                    if ALLOW_DOUBLE:
                         sum += max(self.Q_values[new_state][STAND], 
                                 self.Q_values[new_state][HIT], 
                                 self.calculate_double_value(new_state))
@@ -270,14 +273,10 @@ class Agent:
                     key = extract_key(key_str)
                     table[key] = eval(entry_str)
 
-    @staticmethod
-    def tester_print(i, n, name):
-        print(f"\r  {name} {i + 1}/{n}", end="")
-        if i == n - 1:
-            print()
-
     def calculate_bet_amount(self, true_count):
-        if true_count < 0:
-            return 0
-        # return true_count
-        return min(100, true_count * 10 + 25)
+        if self.smart_bet:
+            if true_count < 0:
+                return 0
+            return min(100, true_count * 10 + 25)
+        else:
+            return 25
