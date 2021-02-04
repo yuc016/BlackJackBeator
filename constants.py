@@ -20,9 +20,9 @@ USR_CARD_HEIGHT = 275
 AI_FILE = "saved"
 LOAD_AI = True             # Load saved AI knowedge from file
 FAST_LEARN = True           # Do Q-Learning and store to file
-LEARN_ITERATIONS = 100    # Number of Q-Learning iterations
+LEARN_ITERATIONS = 1000000    # Number of Q-Learning iterations
 FAST_SIM = True             # Simulate games
-SIM_ITERATIONS = 1000      # Number of simulations to run
+SIM_ITERATIONS = 100000      # Number of simulations to run
 
 ## Statistics ## 
 GAMES_PER_STAT_TRACK = 200
