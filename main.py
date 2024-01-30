@@ -30,8 +30,11 @@ class GameRunner:
         self.card_imgs = {}
         for rank in RANKS:
             for suit in SUITS:
-                self.card_imgs[(rank, suit)] = pygame.image.load(os.path.join(card_path, f"{rank}_{suit}.png"))
-        self.card_back_img = pygame.image.load('resources/cardback.png')
+                card_img = pygame.image.load(os.path.join(card_path, f"{rank}_{suit}.png"))
+                self.card_imgs[(rank, suit)] = pygame.transform.scale(card_img, (CARD_WIDTH, CARD_HEIGHT))
+
+        card_back_img = pygame.image.load('resources/cardback.png')
+        self.card_back_img = pygame.transform.scale(card_back_img, (CARD_WIDTH, CARD_HEIGHT))
 
         self.init_display()
         self.render_board()
@@ -41,8 +44,11 @@ class GameRunner:
         #Initialize Game
         pygame.init()
         self.screen = pygame.display.set_mode(WINDOW_SIZE)
-        pygame.display.set_caption('Blackjack')
-        self.font = pygame.font.SysFont("arial", 15)
+        pygame.display.set_caption('BLACKJACK')
+
+        print("Available system fonts:")
+        print(pygame.font.get_fonts())
+        self.font = pygame.font.SysFont("papyrus", 17)
         
         self.hit_txt = self.font.render('[H]it', 1, BLACK)
         self.stand_txt = self.font.render('[S]tand', 1, BLACK)
@@ -51,21 +57,21 @@ class GameRunner:
         self.split_hand_txt = self.font.render('Split: ' + str(self.split_hand), 1, BLACK)
 
         modes = ["OFF", "ON"]
-        self.QL_txt = [self.font.render('[Q]L - ' + mode, 1, BLUE) for mode in modes]
+        self.ql_txt = [self.font.render('[Q] Learn - ' + mode, 1, BLUE) for mode in modes]
         self.autoplay_txt = [self.font.render('[A]uto Play - ' + mode, 1, BLUE) for mode in modes]
-        self.gameover_txt = [self.font.render('You WON!', 1, RED), self.font.render('You LOST!', 1, RED), self.font.render('You WON!\nBLACKJACK!', 1, RED), self.font.render('DRAW!', 1, RED)]
+        self.gameover_txt = [self.font.render('Player WIN!', 1, GREEN), self.font.render('Dealer WIN!', 1, RED), self.font.render('Player BLACKJACK!!!', 1, RED), self.font.render('PUSH!', 1, RED)]
 
-        self.ops_instr = self.font.render('Click on the button or press corresponding key to play', 1, BLACK)
+        self.ops_instr = self.font.render('Click buttons or press keys to play', 1, BLACK)
         self.save_instr = self.font.render('Press 1 to save AI state', 1, BLACK)
         self.load_instr = self.font.render('Press 2 to load AI state', 1, BLACK)
 
         self.background = pygame.Surface(self.screen.get_size())
         self.background = self.background.convert()
         self.background.fill((0xa0, 0xa0, 0xa0))
-        self.hit_btn = pygame.draw.rect(self.background, WHITE, (10, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
-        self.stand_btn = pygame.draw.rect(self.background, WHITE, (95, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
-        self.double_btn = pygame.draw.rect(self.background, WHITE, (180, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
-        self.split_btn = pygame.draw.rect(self.background, WHITE, (265, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
+        self.hit_btn = pygame.draw.rect(self.background, WHITE, (HIT_BTN_X, OPS_BTN_Y, OPS_BTN_WIDTH, OPS_BTN_HEIGHT))
+        self.stand_btn = pygame.draw.rect(self.background, WHITE, (STAND_BTN_X, OPS_BTN_Y, OPS_BTN_WIDTH, OPS_BTN_HEIGHT))
+        self.double_btn = pygame.draw.rect(self.background, WHITE, (DOUBLE_BTN_X, OPS_BTN_Y, OPS_BTN_WIDTH, OPS_BTN_HEIGHT))
+        self.split_btn = pygame.draw.rect(self.background, WHITE, (SPLIT_BTN_X, OPS_BTN_Y, OPS_BTN_WIDTH, OPS_BTN_HEIGHT))
 
 
     def loop(self):
@@ -284,9 +290,8 @@ class GameRunner:
         self.split_hand_txt = self.font.render('Split: ' + str(self.split_hand), 1, BLACK)
 
         button_colors = [RED, GREEN]
-        self.QL_btn = pygame.draw.rect(self.background, button_colors[self.autoQL], (350, OPS_BTN_Y, 75, OPS_BTN_HEIGHT))
-        self.autoplay_btn = pygame.draw.rect(self.background, button_colors[self.autoPlay], (435, OPS_BTN_Y, 115, OPS_BTN_HEIGHT))
-
+        self.QL_btn = pygame.draw.rect(self.background, button_colors[self.autoQL], (QL_BTN_X, OPS_BTN_Y, OPS_BTN_WIDTH, OPS_BTN_HEIGHT))
+        self.autoplay_btn = pygame.draw.rect(self.background, button_colors[self.autoPlay], (AUTO_PLAY_BTN_X, OPS_BTN_Y, OPS_BTN_WIDTH, OPS_BTN_HEIGHT))
 
         state_info = self.font.render('State (player_sum, player_has_Ace, dealer_first) ={}'.format(self.game.state), 1, BLACK)
 
@@ -313,20 +318,46 @@ class GameRunner:
         ) , 1, BLACK)
         
         self.screen.blit(self.background, (0, 0))
-        self.screen.blit(self.hit_txt, (37, OPS_TXT_Y))
-        self.screen.blit(self.stand_txt, (113, OPS_TXT_Y))
-        self.screen.blit(self.double_txt, (190, OPS_TXT_Y))
-        self.screen.blit(self.split_txt, (270, OPS_TXT_Y))
-        self.screen.blit(self.QL_txt[self.autoQL], (359, OPS_TXT_Y))
-        self.screen.blit(self.autoplay_txt[self.autoPlay], (444, OPS_TXT_Y))
+        self.screen.blit(
+            self.hit_txt, 
+            (HIT_BTN_X + (OPS_BTN_WIDTH - self.hit_txt.get_width()) // 2, 
+            OPS_BTN_Y + OPS_BTN_HEIGHT - self.hit_txt.get_height() * 0.85)
+        )
+        self.screen.blit(
+            self.stand_txt, 
+            (STAND_BTN_X + (OPS_BTN_WIDTH - self.stand_txt.get_width()) // 2, 
+            OPS_BTN_Y + OPS_BTN_HEIGHT - self.stand_txt.get_height() * 0.85)
+        )
+        self.screen.blit(
+            self.double_txt, 
+            (DOUBLE_BTN_X + (OPS_BTN_WIDTH - self.double_txt.get_width()) // 2, 
+            OPS_BTN_Y + OPS_BTN_HEIGHT - self.double_txt.get_height() * 0.85)
+        )
+        self.screen.blit(
+            self.split_txt, 
+            (SPLIT_BTN_X + (OPS_BTN_WIDTH - self.split_txt.get_width()) // 2, 
+            OPS_BTN_Y + OPS_BTN_HEIGHT - self.split_txt.get_height() * 0.85)
+        )
+        self.screen.blit(
+            self.ql_txt[self.autoQL], 
+            (QL_BTN_X + (OPS_BTN_WIDTH - self.ql_txt[self.autoQL].get_width()) // 2, 
+            OPS_BTN_Y + OPS_BTN_HEIGHT - self.ql_txt[self.autoQL].get_height() * 0.85)
+        )
+        self.screen.blit(
+            self.autoplay_txt[self.autoPlay], 
+            (AUTO_PLAY_BTN_X + (OPS_BTN_WIDTH - self.autoplay_txt[self.autoPlay].get_width()) // 2, 
+            OPS_BTN_Y + OPS_BTN_HEIGHT - self.autoplay_txt[self.autoPlay].get_height() * 0.85)
+        )
         self.screen.blit(self.ops_instr, (OPS_INSTR_X, OPS_INSTR_Y))
 
+        # AI info box
         for width, color in [(0, WHITE), (2, BLACK)]:
             pygame.draw.rect(self.screen, color,
-                (10, 170, 600, 95), width)
-        self.screen.blit(state_info, (20, 180))
-        self.screen.blit(QV, (20, 220))
-        self.screen.blit(STRATEGY, (20, 240))
+                (AI_INFO_BOX_X, AI_INFO_BOX_Y, AI_INFO_BOX_WIDTH, AI_INFO_BOX_HEIGHT), width)
+
+        self.screen.blit(state_info, (AI_INFO_BOX_X + GENERAL_GAP, AI_INFO_BOX_Y + SMALL_GAP))
+        self.screen.blit(QV, (AI_INFO_BOX_X + GENERAL_GAP, AI_INFO_BOX_Y + SMALL_GAP + AI_INFO_BOX_HEIGHT // 3))
+        self.screen.blit(STRATEGY, (AI_INFO_BOX_X + GENERAL_GAP, AI_INFO_BOX_Y + SMALL_GAP + AI_INFO_BOX_HEIGHT // 3 * 2))
 
         self.screen.blit(curr_bet_txt, (200, 10))
         self.screen.blit(curr_true_count_txt, (200, 30))
@@ -345,12 +376,12 @@ class GameRunner:
         self.screen.blit(profit_txt, (500, 110))
 
         self.screen.blit(self.split_hand_txt, (350, 300))
-        self.screen.blit(self.save_instr, (350, 380))
-        self.screen.blit(self.load_instr, (350, 400))
+        self.screen.blit(self.save_instr, (SAVE_INSTR_X, SAVE_INSTR_Y))
+        self.screen.blit(self.load_instr, (LOAD_INSTR_X, SAVE_INSTR_Y + GENERAL_GAP + self.save_instr.get_height()))
 
         for i, card in enumerate(self.game.player_cards):
-            x = 10 + i * 20
-            self.screen.blit(self.card_imgs[card], (x, USR_CARD_HEIGHT))
+            x = PLAYER_CARD_START_X + i * PLAYER_CARD_OFFSET
+            self.screen.blit(self.card_imgs[card], (x, PLAYER_CARD_Y))
         
         if self.game.is_game_over() or self.game.stand:
             if self.game.state == STATE_WIN:
@@ -359,16 +390,18 @@ class GameRunner:
                 result_txt = self.gameover_txt[2]
             elif self.game.state == STATE_DRAW:
                 result_txt = self.gameover_txt[3]
-            else:
+            elif self.game.state == STATE_LOSE:
                 result_txt = self.gameover_txt[1]
-            self.draw_label_hl(self.screen, GAME_OVER_TEXT_POS, result_txt)
-            self.screen.blit(result_txt, GAME_OVER_TEXT_POS)
+
+            self.draw_label_hl(self.screen, (GAME_OVER_TEXT_X, GAME_OVER_TEXT_Y), result_txt)
+            self.screen.blit(result_txt, (GAME_OVER_TEXT_X, GAME_OVER_TEXT_Y))
+
             for i, card in enumerate(self.game.dealer_cards):
-                x = 10 + i * 20
-                self.screen.blit(self.card_imgs[card], (x, 10))
+                x = DEALER_CARD_START_X + i * DEALER_CARD_OFFSET
+                self.screen.blit(self.card_imgs[card], (x, DEALER_CARD_Y))
         else:
-            self.screen.blit(self.card_imgs[self.game.dealer_cards[0]], (10, 10))
-            self.screen.blit(self.card_back_img, (30, 10))
+            self.screen.blit(self.card_imgs[self.game.dealer_cards[0]], (DEALER_CARD_START_X, DEALER_CARD_Y))
+            self.screen.blit(self.card_back_img, (DEALER_CARD_START_X + DEALER_CARD_OFFSET, DEALER_CARD_Y))
 
         pygame.display.update()
 
