@@ -46,8 +46,8 @@ class GameRunner:
         self.screen = pygame.display.set_mode(WINDOW_SIZE)
         pygame.display.set_caption('BLACKJACK')
 
-        print("Available system fonts:")
-        print(pygame.font.get_fonts())
+        # print("Available system fonts:")
+        # print(pygame.font.get_fonts())
         self.font = pygame.font.SysFont("papyrus", 17)
         
         self.hit_txt = self.font.render('[H]it', 1, BLACK)
@@ -73,39 +73,43 @@ class GameRunner:
         self.double_btn = pygame.draw.rect(self.background, WHITE, (DOUBLE_BTN_X, OPS_BTN_Y, OPS_BTN_WIDTH, OPS_BTN_HEIGHT))
         self.split_btn = pygame.draw.rect(self.background, WHITE, (SPLIT_BTN_X, OPS_BTN_Y, OPS_BTN_WIDTH, OPS_BTN_HEIGHT))
 
+    def fast_simulation(self):
+        print(f"Simulating {SIM_ITERATIONS} times..")
+        i = 0
+        last_checked_profit = 0
+        results_100_games_file = open("results.txt", "w")
 
-    def loop(self):
+        while i < SIM_ITERATIONS:
+            if self.game.is_game_over():
+                self.game.update_stats()
+                self.next_game()
+                i += 1
+
+                if i % (SIM_ITERATIONS / 10) == 0:
+                    print("[ ", i * 100 / SIM_ITERATIONS, "%]")
+                    
+                if self.game.num_games % GAMES_PER_STAT_TRACK == 0 and self.game.num_games != 0:
+                    results_100_games_file.write(str(self.game.profit - last_checked_profit))
+                    results_100_games_file.write("\n")
+                    last_checked_profit = self.game.profit
+            else:
+                decision = self.agent.autoplay_decision(self.game.state, self.game.can_double(), self.game.can_split())
+                if decision == HIT:
+                    self.game.act_hit()
+                elif decision == STAND:
+                    self.game.act_stand()
+                elif decision == DOUBLE:
+                    self.game.act_double()
+                elif decision == SPLIT:
+                    self.split_games()
+
+        results_100_games_file.close()
+        self.render_board()
+
+    def start_game(self):
+
         if FAST_SIM:
-            print(f"Simulating {SIM_ITERATIONS} times..")
-            i = 0
-            last_checked_profit = 0
-            results_100_games_file = open("results.txt", "w")
-
-            while i < SIM_ITERATIONS:
-                if self.game.is_game_over() or self.game.stand:
-                    self.game.update_stats()
-                    self.next_game()
-
-                    i += 1
-                    if i % (SIM_ITERATIONS / 10) == 0:
-                        print("[ ", i * 100 / SIM_ITERATIONS, "%]")
-                    if self.game.num_games % GAMES_PER_STAT_TRACK == 0 and self.game.num_games != 0:
-                        results_100_games_file.write(str(self.game.profit - last_checked_profit))
-                        results_100_games_file.write("\n")
-                        last_checked_profit = self.game.profit
-                else:
-                    decision = self.agent.autoplay_decision(self.game.state, self.game.can_double(), self.game.can_split())
-                    if decision == HIT:
-                        self.game.act_hit()
-                    elif decision == STAND:
-                        self.game.act_stand()
-                    elif decision == DOUBLE:
-                        self.game.act_double()
-                    elif decision == SPLIT:
-                        self.split_games()
-
-            results_100_games_file.close()
-            self.render_board()
+            self.fast_simulation()
 
         while True:
             update_display = False
@@ -118,6 +122,7 @@ class GameRunner:
             
             if self.autoPlay:
                 update_display = True
+
                 if self.game.is_game_over():
                     self.game.update_stats()
                     self.next_game()
@@ -131,7 +136,7 @@ class GameRunner:
                         self.game.act_double()
                     elif decision == SPLIT:
                         self.split_games()
-        
+                
             if self.handle_user_action() or update_display:
                 self.render_board()
     
@@ -159,6 +164,9 @@ class GameRunner:
         self.splitted_games[-1].sync(self.game)
         self.game = self.splitted_games[-1]
         self.splitted_games.pop()
+    
+    def check_act_quit(self, event):
+        return event.type == QUIT or (event.type == KEYDOWN and event.key == K_x)
 
     def check_act_QL(self, event):
         clicked = event.type == MOUSEBUTTONDOWN and self.QL_btn.collidepoint(pygame.mouse.get_pos())
@@ -204,44 +212,44 @@ class GameRunner:
     def handle_user_action(self):
         update_display = False
         for event in pygame.event.get():
-            if event.type == QUIT:
+            if self.check_act_quit(event):
                 pygame.quit()
                 sys.exit()
-            elif self.check_act_QL(event):
+            if self.check_act_QL(event):
                 self.autoQL = not self.autoQL
-            elif self.check_act_autoplay(event):
+            if self.check_act_autoplay(event):
                 self.autoPlay = not self.autoPlay
-            elif self.check_act_hit(event):
-                self.game.act_hit()
-                update_display = True
-            elif self.check_act_stand(event):
-                self.game.act_stand()
-                update_display = True
-            elif self.check_act_double(event):
-                if self.game.can_double():
-                    self.game.act_double()
-                    update_display = True
-            elif self.check_act_split(event):
-                if self.game.can_split():
-                    self.split_games()
-                    update_display = True
-            elif self.check_reset(event):
-                self.game.update_stats()
-                self.next_game()
-                update_display = True
             if event.type == KEYDOWN:
-                if event.key == K_x:
-                    pygame.quit()
-                    sys.exit()
                 if event.key == K_1:
                     self.agent.save(AI_FILE)
                 elif event.key == K_2:
                     self.agent.load(AI_FILE)
                     update_display = True
-                if event.key == K_p:
+                elif event.key == K_p:
                     self.game.print_counts()
-                if event.key == K_v:
+                elif event.key == K_v:
                     self.agent.print_decision_value()
+            
+            if self.game.is_game_over():
+                if self.check_reset(event):
+                    self.game.update_stats()
+                    self.next_game()
+                    update_display = True
+            else:
+                if self.check_act_hit(event):
+                    self.game.act_hit()
+                    update_display = True
+                elif self.check_act_stand(event):
+                    self.game.act_stand()
+                    update_display = True
+                elif self.check_act_double(event):
+                    if self.game.can_double():
+                        self.game.act_double()
+                        update_display = True
+                elif self.check_act_split(event):
+                    if self.game.can_split():
+                        self.split_games()
+                        update_display = True
             
             return update_display
     
@@ -264,26 +272,26 @@ class GameRunner:
         # Game Stats
         if self.game.num_games == 0:
             win_rate = 0
-            draw_rate = 0
+            push_rate = 0
             lose_rate = 0
             blackjack_rate = 0
         else:
             blackjack_rate = self.game.num_blackjacks / self.game.num_games
             win_rate = self.game.num_wins / self.game.num_games
-            draw_rate = self.game.num_draws / self.game.num_games
+            push_rate = self.game.num_pushes / self.game.num_games
             lose_rate = self.game.num_losses / self.game.num_games
 
         num_games_txt = self.font.render('Number of games: {}'.format(self.game.num_games), 1, WHITE)
         blackjack_rate_txt = self.font.render('Blackjack rate: {:.2f}%'.format(blackjack_rate * 100), 1, WHITE)
         win_rate_txt = self.font.render('Win rate: {:.2f}%'.format(win_rate * 100), 1, WHITE)
-        draw_rate_txt = self.font.render('Draw rate: {:.2f}%'.format(draw_rate * 100), 1, WHITE)
+        push_rate_txt = self.font.render('Draw rate: {:.2f}%'.format(push_rate * 100), 1, WHITE)
         lose_rate_txt = self.font.render('Loss rate: {:.2f}%'.format(lose_rate * 100), 1, WHITE)
             
         # Bank Stats
         amount_played_txt = self.font.render('Amount played: {}'.format(self.game.amount_played), 1, WHITE)
         max_profit_txt = self.font.render('Max win: {}'.format(self.game.max_profit), 1, WHITE)
         max_loss_txt = self.font.render('Max loss: {}'.format(self.game.max_loss), 1, WHITE)
-        max_loss_streak_txt = self.font.render('Max continuous loss: {}'.format(self.game.max_loss_streak), 1, WHITE)
+        max_lose_streak_txt = self.font.render('Max continuous loss: {}'.format(self.game.max_lose_streak), 1, WHITE)
         max_win_streak_txt = self.font.render('Max continuous win: {}'.format(self.game.max_win_streak), 1, WHITE)
         profit_txt = self.font.render('Profit: {}'.format(self.game.profit), 1, WHITE)
 
@@ -365,13 +373,13 @@ class GameRunner:
         self.screen.blit(num_games_txt, (350, 10))
         self.screen.blit(blackjack_rate_txt, (350, 30))
         self.screen.blit(win_rate_txt, (350, 50))
-        self.screen.blit(draw_rate_txt, (350, 70))
+        self.screen.blit(push_rate_txt, (350, 70))
         self.screen.blit(lose_rate_txt, (350, 90))
 
         self.screen.blit(amount_played_txt, (500, 10))
         self.screen.blit(max_profit_txt, (500, 30))
         self.screen.blit(max_loss_txt, (500, 50))
-        self.screen.blit(max_loss_streak_txt, (500, 70))
+        self.screen.blit(max_lose_streak_txt, (500, 70))
         self.screen.blit(max_win_streak_txt, (500, 90))
         self.screen.blit(profit_txt, (500, 110))
 
@@ -388,7 +396,7 @@ class GameRunner:
                 result_txt = self.gameover_txt[0]
             elif self.game.state == STATE_BLACKJACK:
                 result_txt = self.gameover_txt[2]
-            elif self.game.state == STATE_DRAW:
+            elif self.game.state == STATE_PUSH:
                 result_txt = self.gameover_txt[3]
             elif self.game.state == STATE_LOSE:
                 result_txt = self.gameover_txt[1]
@@ -408,4 +416,4 @@ class GameRunner:
 
 ROTATIONS = {pygame.K_UP: 0, pygame.K_DOWN: 2, pygame.K_LEFT: 1, pygame.K_RIGHT: 3}
 game = GameRunner()
-game.loop()
+game.start_game()

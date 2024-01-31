@@ -114,10 +114,10 @@ BIG_CARD_VALUE = 10
 ## Game states ##
 STATE_WIN = (0,0,1)
 STATE_LOSE = (0,0,0)
-STATE_DRAW = (1,0,1)
-STATE_BLACKJACK = (1,1,1)
+STATE_PUSH = (1,0,1)
+STATE_BLACKJACK = (11,1,11)
 
-STATES = [STATE_WIN, STATE_LOSE, STATE_DRAW, STATE_BLACKJACK]
+STATES = [STATE_WIN, STATE_LOSE, STATE_PUSH, STATE_BLACKJACK]
 
 # Non-special states (player's sum, player has Ace, dealer's upcard)
 for player_sum in range(2,21):

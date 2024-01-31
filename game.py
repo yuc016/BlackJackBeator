@@ -7,15 +7,15 @@ class Game:
         self.num_games = 0
         self.num_wins = 0
         self.num_losses = 0
-        self.num_draws = 0
+        self.num_pushes = 0
         self.num_blackjacks = 0
 
         self.amount_played = 0
         self.profit = 0
         self.max_profit = 0
         self.max_loss = 0
-        self.max_loss_streak = 0
-        self.curr_loss_streak = 0
+        self.max_lose_streak = 0
+        self.curr_lose_streak = 0
         self.max_win_streak = 0
         self.curr_win_streak = 0
 
@@ -72,6 +72,7 @@ class Game:
         self.state = self.make_state()
 
     def cards_sufficient(self):
+        # One 6th of trailing cards will not be played
         return len(self.playing_cards) > NUM_DECK * 52 // 6
 
     def get_card_value(self, card):
@@ -87,7 +88,7 @@ class Game:
         if has_ace > 0 and cards_sum + 10 <= 21:
             A_active = True
         actual_sum = cards_sum + A_active * 10
-        return actual_sum, A_active
+        return actual_sum
     
     # Generate new decks of playing cards
     def get_new_decks(self):
@@ -124,12 +125,12 @@ class Game:
             self.true_count += 1
     
     def is_game_over(self):
-        return self.stand or self.state == STATE_WIN or self.state == STATE_LOSE or self.state == STATE_DRAW or self.state == STATE_BLACKJACK
+        return self.stand or self.state == STATE_WIN or self.state == STATE_LOSE or self.state == STATE_PUSH or self.state == STATE_BLACKJACK
 
     def make_state(self):
         # Calculate actual hands after counting A as 11 as needed
-        actual_player_sum, player_A_active = self.calculate_hand(self.player_sum, self.player_has_ace)
-        actual_dealer_sum, _ = self.calculate_hand(self.dealer_sum, self.dealer_has_ace)
+        actual_player_sum = self.calculate_hand(self.player_sum, self.player_has_ace)
+        actual_dealer_sum = self.calculate_hand(self.dealer_sum, self.dealer_has_ace)
 
         dealer_bj = len(self.dealer_cards) == 2 and actual_dealer_sum == 21
         player_bj = len(self.player_cards) == 2 and actual_player_sum == 21
@@ -137,23 +138,30 @@ class Game:
         # Dealer blackjack
         if dealer_bj:
             if player_bj:
-                return STATE_DRAW
+                return STATE_PUSH
             else:
                 return STATE_LOSE
+        
+        # Player blackjack
+        if player_bj:
+            return STATE_BLACKJACK
 
-        # 21!
-        if actual_player_sum == 21:
-            # Call a stand for player, and don't make state again
-            self.act_stand(False) 
+        # if actual_player_sum == 21:
+        #     # Call a stand for player to allow dealer play, and don't make state again
+        #     self.act_stand(False)
 
-            # Player blackjack
-            if player_bj:
-                return STATE_BLACKJACK
-            else:
-                if actual_dealer_sum != 21:
-                    return STATE_WIN
-                else:
-                    return STATE_DRAW
+        #     # Recalculate dealer sum after dealer played
+        #     actual_dealer_sum = self.calculate_hand(self.dealer_sum, self.dealer_has_ace)
+
+        #     if actual_dealer_sum != 21:
+        #         return STATE_WIN
+        #     else:
+        #         # DEBUG
+        #         # print(self.dealer_cards)
+        #         # print(self.player_cards)
+        #         # print(self.doubledown)
+        #         # print()
+        #         return STATE_PUSH
         
         # Player busts
         if actual_player_sum > 21:
@@ -164,17 +172,18 @@ class Game:
             if actual_dealer_sum > 21 or actual_player_sum > actual_dealer_sum:
                 return STATE_WIN
             elif actual_dealer_sum == actual_player_sum:
-                return STATE_DRAW
+                return STATE_PUSH
             return STATE_LOSE
 
-        # Game not over #
+        # Game not over
+
+        if USE_SIMPLE_STATES:
+            return (self.player_sum, self.player_has_ace, self.dealer_upcard_value)
+
         card_value_available = [0] * 10
         for i in range(10):
             if self.card_counts[i] > 0:
                 card_value_available[i] = 1
-
-        if USE_SIMPLE_STATES:
-            return (self.player_sum, self.player_has_ace, self.dealer_upcard_value)
         return (self.player_sum, self.player_has_ace, self.dealer_upcard_value, *card_value_available)
         
     def act_hit(self):
@@ -187,14 +196,12 @@ class Game:
         self.state = self.make_state()
 
     def act_stand(self, make_state=True):
-        actual_player_sum, player_A_active = self.calculate_hand(self.player_sum, self.player_has_ace)
-
         while True:
-            actual_dealer_sum, dealer_A_active = self.calculate_hand(self.dealer_sum, self.dealer_has_ace)
+            actual_dealer_sum = self.calculate_hand(self.dealer_sum, self.dealer_has_ace)
 
             if actual_dealer_sum >= 17:
                 # Break unless dealer gets a soft 17 and follows hit on soft 17 policy 
-                if not (HIT_SOFT_17 and actual_dealer_sum == 17 and dealer_A_active):
+                if not (HIT_SOFT_17 and actual_dealer_sum == 17 and actual_dealer_sum != self.dealer_sum):
                     break
             card, is_ace = self.deal_card(self.dealer_cards)
             self.dealer_has_ace = is_ace or self.dealer_has_ace
@@ -232,7 +239,7 @@ class Game:
             return BLACKJACK_PAYRATE
         if self.state == STATE_WIN:
             return 1
-        if self.state == STATE_DRAW:
+        if self.state == STATE_PUSH:
             return 0
         return -1
 
@@ -247,8 +254,8 @@ class Game:
         elif self.state == STATE_BLACKJACK:
             self.num_blackjacks += 1
             profit_delta = BLACKJACK_PAYRATE * self.bet
-        elif self.state == STATE_DRAW:
-            self.num_draws += 1
+        elif self.state == STATE_PUSH:
+            self.num_pushes += 1
         elif self.state == STATE_LOSE:
             self.num_losses += 1
             profit_delta = -self.bet
@@ -260,9 +267,9 @@ class Game:
         if self.profit < self.max_loss:
             self.max_loss = self.profit
         
-        self.curr_loss_streak = min(self.curr_loss_streak + profit_delta, 0)
-        if self.curr_loss_streak < self.max_loss_streak:
-            self.max_loss_streak = self.curr_loss_streak
+        self.curr_lose_streak = min(self.curr_lose_streak + profit_delta, 0)
+        if self.curr_lose_streak < self.max_lose_streak:
+            self.max_lose_streak = self.curr_lose_streak
 
         self.curr_win_streak = max(self.curr_win_streak + profit_delta, 0)
         if self.curr_win_streak > self.max_win_streak:
@@ -287,15 +294,15 @@ class Game:
 
     def sync(self, game):
         self.num_losses = game.num_losses
-        self.num_draws = game.num_draws
+        self.num_pushes = game.num_pushes
         self.num_wins = game.num_wins
         self.num_blackjacks = game.num_blackjacks
         self.num_games = game.num_games
         self.max_loss = game.max_loss
         self.max_profit = game.max_profit
-        self.max_loss_streak = game.max_loss_streak
+        self.max_lose_streak = game.max_lose_streak
         self.max_win_streak = game.max_win_streak
-        self.curr_loss_streak = game.curr_loss_streak
+        self.curr_lose_streak = game.curr_lose_streak
         self.curr_win_streak = game.curr_win_streak
         self.profit = game.profit
         self.amount_played = game.amount_played
