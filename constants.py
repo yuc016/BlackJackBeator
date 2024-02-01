@@ -120,7 +120,7 @@ STATE_BLACKJACK = (11,1,11)
 STATES = [STATE_WIN, STATE_LOSE, STATE_PUSH, STATE_BLACKJACK]
 
 # Non-special states (player's sum, player has Ace, dealer's upcard)
-for player_sum in range(2,21):
+for player_sum in range(2,22):
     for player_has_Ace in range(0,2):
         for dealer_upcard in range(1,11):
             if USE_SIMPLE_STATES:

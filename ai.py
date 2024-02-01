@@ -33,14 +33,13 @@ class Agent:
     def alpha(n):
         return 5.0/(4 + n)
 
-    # Explore vs. Exploit probability
+    # Explore (1) vs. Exploit (0) probability
     @staticmethod
     def epsilon(n):
-        return 1
-        return 40000/(39999 + n)
+        return 100 / (n + 1) + 0.1
     
     def Q_run(self, num_simulation, print_stat=False):
-        # Perform num_simulation rounds of simulations of gameplay
+        # Perform specified rounds of simulations of gameplay
         for simulation in range(num_simulation):
             self.simulator.reset_game()
 
@@ -123,9 +122,8 @@ class Agent:
         print("DOUBLE: ", self.doubleQ)
         print("SPLIT: ", self.splitQ)
 
-    # Inaccuacy: Consider 21 a win, but can still be a push
     def calculate_double_value(self, state):
-        if state == STATE_WIN or state == STATE_LOSE or state == STATE_DRAW or state == STATE_BLACKJACK:
+        if state == STATE_WIN or state == STATE_LOSE or state == STATE_PUSH or state == STATE_BLACKJACK:
             return 0
 
         # If double value for the state is previously calculated and saved
@@ -136,23 +134,14 @@ class Agent:
         count = 0
 
         if USE_SIMPLE_STATES:
-            new_state = (state[0] + 1, 1, *(state[2:]))
-            if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                sum += 1.8
-            # stand value of the next state
-            else:
-                sum += self.Q_values[new_state][STAND] * 2
-
-            for i in range(2, 14):
+            # Assume probabilities of getting all ranks are equal
+            for i in range(1, 14):
                 i = min(10, i)
-                new_state = (state[0] + i, *(state[1:]))
-                if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                    sum += 1.8
-                elif new_state in STATES:
-                    sum += self.Q_values[new_state][STAND] * 2
-                # busted
-                else:
+                new_state = (state[0] + i, state[1] == 1 or i == 1, state[2:])
+                if new_state[0] > 21:
                     sum -= 2
+                else:
+                    sum += self.Q_values[new_state][STAND] * 2
 
             return sum / 13
 
@@ -201,9 +190,8 @@ class Agent:
         self.double_values[state] = sum / count
         return self.double_values[state]
 
-    # Inaccuacy: Consider 21 a win, but can still be a push
     def calculate_split_value(self, state):
-        if state == STATE_WIN or state == STATE_LOSE or state == STATE_DRAW or state == STATE_BLACKJACK:
+        if state == STATE_WIN or state == STATE_LOSE or state == STATE_PUSH or state == STATE_BLACKJACK:
             return 0
 
         # If split value for the state is previously calculated and saved
@@ -213,34 +201,16 @@ class Agent:
         sum = 0
 
         if USE_SIMPLE_STATES:
-            new_state = (state[0] / 2 + 1, 1, state[2])
-            if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                sum += 0.8
-            # max value of the next state
-            else:
-                if ALLOW_DOUBLE:
-                    sum += max(self.Q_values[new_state][STAND], 
-                            self.Q_values[new_state][HIT], 
-                            self.calculate_double_value(new_state))
-                else:
-                    sum += max(self.Q_values[new_state][STAND], 
-                            self.Q_values[new_state][HIT])
-
-            for i in range(2, 14):
+            for i in range(1, 14):
                 i = min(10, i)
-                new_state = (state[0] / 2 + i, *(state[1:]))
-                if new_state[0] == 21 or (new_state[0] == 11 and new_state[1] == 1):
-                    sum += 0.8
-                elif new_state in STATES:
-                    if ALLOW_DOUBLE:
-                        sum += max(self.Q_values[new_state][STAND], 
-                                self.Q_values[new_state][HIT], 
-                                self.calculate_double_value(new_state))
-                    else:
-                        sum += max(self.Q_values[new_state][STAND], 
-                                self.Q_values[new_state][HIT])
+                new_state = (state[0] / 2 + i, state[1] == 1 or i == 1, state[2])
+
+                if new_state[0] > 21:
+                    sum -= 1
                 else:
-                    sum -= BET
+                    reward = max(self.Q_values[new_state][STAND], self.Q_values[new_state][HIT])
+                    if ALLOW_DOUBLE:
+                        sum += max(reward, self.calculate_double_value(new_state))
 
             return sum / 13 * 2
         
