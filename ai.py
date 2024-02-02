@@ -31,12 +31,12 @@ class Agent:
     # Learning rate for Q-Learning
     @staticmethod
     def alpha(n):
-        return 5.0/(4 + n)
+        return 20/(19 + n) + 0.0001
 
     # Explore (1) vs. Exploit (0) probability
     @staticmethod
     def epsilon(n):
-        return 100 / (n + 1) + 0.1
+        return 30000 / (n + 1)
     
     def Q_run(self, num_simulation, print_stat=False):
         # Perform specified rounds of simulations of gameplay
@@ -67,11 +67,9 @@ class Agent:
 
         if USE_SIMPLE_STATES:
             for s in STATES:
-                self.double_values[s] = 70
                 self.double_values[s] = self.calculate_double_value(s)
-                self.split_values[s] = 70
-                # Split happens when sum is even and if sum is 2, dealer has ace
-                if int(s[0]) % 2 == 0 and int(s[1]) != 1 and int(s[0]) > 2 or int(s[0]) == 2 and int(s[1]) == 1:
+                # Split can happen when player has two aces, or doesn't have ace but has even sum
+                if int(s[1]) == 1 and int(s[0]) == 2 or int(s[1]) != 1 and int(s[0]) % 2 == 0 and int(s[0]) > 2:
                     self.split_values[s] = self.calculate_split_value(s)
 
     def pick_action(self, s, epsilon):
@@ -126,24 +124,25 @@ class Agent:
         if state == STATE_WIN or state == STATE_LOSE or state == STATE_PUSH or state == STATE_BLACKJACK:
             return 0
 
-        # If double value for the state is previously calculated and saved
-        if self.double_values[state] != 70:
-            return self.double_values[state]
+        # # If double value for the state is previously calculated and saved
+        # if self.double_values[state] != 70:
+        #     return self.double_values[state]
 
         sum = 0
-        count = 0
 
         if USE_SIMPLE_STATES:
             # Assume probabilities of getting all ranks are equal
             for i in range(1, 14):
                 i = min(10, i)
-                new_state = (state[0] + i, state[1] == 1 or i == 1, state[2:])
+                new_state = (state[0] + i, state[1] == 1 or i == 1, state[2])
                 if new_state[0] > 21:
                     sum -= 2
                 else:
                     sum += self.Q_values[new_state][STAND] * 2
 
             return sum / 13
+
+        count = 0
 
         # Iterate through each possible next card value
         # Ace
@@ -195,8 +194,8 @@ class Agent:
             return 0
 
         # If split value for the state is previously calculated and saved
-        if self.split_values[state] != 70:
-            return self.split_values[state]
+        # if self.split_values[state] != 70:
+        #     return self.split_values[state]
 
         sum = 0
 
