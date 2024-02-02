@@ -51,9 +51,9 @@ GAME_OVER_TEXT_Y = PLAYER_CARD_Y + CARD_HEIGHT + GENERAL_GAP
 AI_FILE = "saved"
 LOAD_AI = True             # Load saved AI knowedge from file
 FAST_LEARN = False           # Do Q-Learning and store to file
-LEARN_ITERATIONS = 10000    # Number of Q-Learning iterations
-FAST_SIM = False             # Simulate games
-SIM_ITERATIONS = 100000      # Number of simulations to run
+LEARN_ITERATIONS = 50000  # Number of Q-Learning iterations
+FAST_SIM = True             # Simulate games
+SIM_ITERATIONS = 1000000      # Number of simulations to run
 
 ## Statistics ## 
 GAMES_PER_STAT_TRACK = 200
@@ -66,13 +66,12 @@ DISCOUNT = 0.9              # For calculating values of future state
 
 ## Game rules ##
 NUM_DECK = 4                # Number of decks of cards
-HIT_SOFT_17 = False         # Whether dealer will hit on soft 17 (sum of 17 with ace counted as 11)
+HIT_SOFT_17 = True          # Whether dealer will hit on soft 17 (sum of 17 with ace counted as 11)
 ALLOW_SPLIT = True
 ALLOW_DOUBLE = True
 DOUBLE_WITH_2_CARDS_ONLY = True
 ACE_SPLIT_DEAL_ONE_CARD = True
 BLACKJACK_PAYRATE = 1.5
-
 
 #### Code constants ####
 
