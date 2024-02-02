@@ -44,7 +44,7 @@
         let split_val = {};
 
         PLAYER_MIN = 2;
-        PLAYER_MAX = 20;
+        PLAYER_MAX = 21;
         DEALER_MIN = 1;
         DEALER_MAX = 10;
 
@@ -203,7 +203,7 @@
                 cell.innerText = (dealer_sum == 1) ? "Ace" : dealer_sum;
             }
 
-            for(player_sum = PLAYER_MIN; player_sum <= 10; player_sum++) {
+            for(player_sum = PLAYER_MIN; player_sum <= 11; player_sum++) {
                 row = table.insertRow();
                 head_cell = row.insertCell();
                 head_cell.className = "head_cell";
